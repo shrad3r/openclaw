@@ -126,6 +126,11 @@ vi.mock("./sdk.js", () => ({
   createMSTeamsTokenProvider: () => ({
     getAccessToken: vi.fn().mockResolvedValue("mock-token"),
   }),
+  createMSTeamsExpressAdapter: vi.fn().mockResolvedValue({
+    registerRoute: vi.fn(),
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 vi.mock("./runtime.js", () => ({

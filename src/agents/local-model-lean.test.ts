@@ -29,7 +29,18 @@ describe("local model lean tool filtering", () => {
     expect(isLocalModelLeanEnabled({ config: cfg, agentId: "gemma" })).toBe(true);
     expect(
       filterLocalModelLeanTools({
-        tools: tools(["read", "browser", "cron", "message", "exec"]),
+        tools: tools([
+          "read",
+          "browser",
+          "cron",
+          "message",
+          "image_generate",
+          "music_generate",
+          "pdf",
+          "tts",
+          "video_generate",
+          "exec",
+        ]),
         config: cfg,
         agentId: "gemma",
       }).map((tool) => tool.name),
@@ -49,11 +60,52 @@ describe("local model lean tool filtering", () => {
 
     expect(
       filterLocalModelLeanTools({
-        tools: tools(["read", "browser", "cron", "message", "exec"]),
+        tools: tools([
+          "read",
+          "browser",
+          "cron",
+          "message",
+          "image_generate",
+          "music_generate",
+          "pdf",
+          "tts",
+          "video_generate",
+          "exec",
+        ]),
         config: cfg,
-        preserveToolNames: ["browser", "cron", "group:messaging"],
+        preserveToolNames: ["browser", "cron", "group:messaging", "group:media", "pdf"],
       }).map((tool) => tool.name),
-    ).toEqual(["read", "browser", "cron", "message", "exec"]);
+    ).toEqual([
+      "read",
+      "browser",
+      "cron",
+      "message",
+      "image_generate",
+      "music_generate",
+      "pdf",
+      "tts",
+      "video_generate",
+      "exec",
+    ]);
+  });
+
+  it("keeps image understanding while trimming optional media production tools", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          experimental: {
+            localModelLean: true,
+          },
+        },
+      },
+    };
+
+    expect(
+      filterLocalModelLeanTools({
+        tools: tools(["read", "image", "image_generate", "music_generate", "video_generate"]),
+        config: cfg,
+      }).map((tool) => tool.name),
+    ).toEqual(["read", "image"]);
   });
 
   it("adds reply-required message tools to lean preservation", () => {

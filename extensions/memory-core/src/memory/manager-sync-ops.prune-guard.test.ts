@@ -11,6 +11,7 @@ import {
   type ResolvedMemorySearchConfig,
 } from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MemoryIndexProviderIdentity } from "./manager-reindex-state.js";
 import { MemoryManagerSyncOps } from "./manager-sync-ops.js";
 
 type SourceStateRow = { path: string; hash: string; mtime: number; size: number };
@@ -86,6 +87,10 @@ class PruneGuardHarness extends MemoryManagerSyncOps {
 
   protected computeProviderKey(): string {
     return "test";
+  }
+
+  protected resolveProviderIndexIdentities(): MemoryIndexProviderIdentity[] {
+    return [];
   }
 
   protected async sync(): Promise<void> {}

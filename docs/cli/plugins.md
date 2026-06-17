@@ -54,8 +54,9 @@ openclaw plugins update <id-or-npm-spec>
 openclaw plugins update --all
 openclaw plugins marketplace list <marketplace>
 openclaw plugins marketplace list <marketplace> --json
-openclaw plugins init <id>
-openclaw plugins init <id> --directory ./my-plugin --name "My Plugin"
+openclaw plugins init "My Tool"
+openclaw plugins init "My Provider" --type provider
+openclaw plugins init "My Provider" --type provider --directory ./my-provider
 openclaw plugins build --entry ./dist/index.js
 openclaw plugins build --entry ./dist/index.js --check
 openclaw plugins validate --entry ./dist/index.js
@@ -80,24 +81,48 @@ Native OpenClaw plugins must ship `openclaw.plugin.json` with an inline JSON Sch
 ### Author
 
 ```bash
-openclaw plugins init stock-quotes --name "Stock Quotes"
+openclaw plugins init "Stock Quotes"
 cd stock-quotes
 npm run plugin:build
 npm run plugin:validate
 ```
 
-`plugins init` creates a minimal TypeScript tool plugin that uses
-`defineToolPlugin`. `plugins build` imports that entry, reads its static tool
-metadata, writes `openclaw.plugin.json`, and keeps `package.json`
-`openclaw.extensions` aligned. `plugins validate` checks that the generated
-manifest, package metadata, and current entry export still agree. See
-[Tool Plugins](/plugins/tool-plugins) for the full authoring workflow.
+`plugins init` creates a minimal TypeScript tool plugin by default. The first
+argument is the display name; OpenClaw derives the plugin id, package name, and
+default output directory from it. Tool scaffolds use `defineToolPlugin`.
+`plugins build` imports the built entry, reads its static tool metadata, writes
+`openclaw.plugin.json`, and keeps `package.json` `openclaw.extensions` aligned.
+`plugins validate` checks that the generated manifest, package metadata, and
+current entry export still agree. See [Tool Plugins](/plugins/tool-plugins) for
+the full tool-authoring workflow.
 
 The scaffold writes TypeScript source but generates metadata from the built
 `./dist/index.js` entry so the workflow also works with the published CLI. Use
 `--entry <path>` when the entry is not the default package entry. Use
 `plugins build --check` in CI to fail when generated metadata is stale without
 rewriting files.
+
+### Provider Scaffold
+
+```bash
+openclaw plugins init "Acme Models" --type provider
+cd acme-models
+npm install
+npm run build
+npm test
+npm run validate
+```
+
+Provider scaffolds create a generic text/model provider plugin with OpenAI-compatible
+API-key plumbing, a built-in `npm run validate` script for `clawhub package
+validate`, ClawHub package metadata, and a manually dispatched GitHub workflow
+for future trusted publishing through GitHub Actions OIDC. Provider scaffolds do
+not use `openclaw plugins build` or `openclaw plugins validate`; those commands
+are for the tool scaffold's generated metadata path.
+
+Before publishing, replace the placeholder API base URL, model catalog, docs
+route, credential text, and README copy with real provider details. Use the
+generated README for first-time ClawHub publishing and trusted publisher setup.
 
 ### Install
 

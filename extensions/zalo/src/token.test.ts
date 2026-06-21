@@ -6,18 +6,15 @@ import { describe, expect, it } from "vitest";
 import { resolveZaloToken } from "./token.js";
 import type { ZaloConfig } from "./types.js";
 
-function canCreateFileSymlink(): boolean {
-  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), "zalo-symlink-probe-"));
-  const targetPath = path.join(probeDir, "target.txt");
-  const linkPath = path.join(probeDir, "link.txt");
+function createSymlinkedFile(targetPath: string, linkPath: string): boolean {
   try {
-    fs.writeFileSync(targetPath, "probe", "utf8");
+    fs.writeFileSync(targetPath, "file-token\n", "utf8");
     fs.symlinkSync(targetPath, linkPath, "file");
     return true;
   } catch {
+    fs.rmSync(linkPath, { force: true });
+    fs.rmSync(targetPath, { force: true });
     return false;
-  } finally {
-    fs.rmSync(probeDir, { recursive: true, force: true });
   }
 }
 
@@ -95,14 +92,11 @@ describe("resolveZaloToken", () => {
   it.runIf(true)("rejects symlinked token files", ({ skip }) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-zalo-token-"));
     try {
-      if (!canCreateFileSymlink()) {
-        skip("file symlinks are unavailable on this host");
-      }
-
       const tokenFile = path.join(dir, "token.txt");
       const tokenLink = path.join(dir, "token-link.txt");
-      fs.writeFileSync(tokenFile, "file-token\n", "utf8");
-      fs.symlinkSync(tokenFile, tokenLink, "file");
+      if (!createSymlinkedFile(tokenFile, tokenLink)) {
+        skip("file symlinks are unavailable on this host");
+      }
 
       const cfg = {
         tokenFile: tokenLink,

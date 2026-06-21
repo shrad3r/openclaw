@@ -40,9 +40,10 @@ describe("qqbot file-utils MIME helpers", () => {
   });
 });
 
-async function canCreateFileSymlink(dir: string): Promise<boolean> {
-  const targetPath = path.join(dir, "symlink-probe-target.txt");
-  const linkPath = path.join(dir, "symlink-probe-link.txt");
+async function canCreateFileSymlink(): Promise<boolean> {
+  const probeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "qqbot-symlink-probe-"));
+  const targetPath = path.join(probeDir, "target.txt");
+  const linkPath = path.join(probeDir, "link.txt");
   try {
     await fs.promises.writeFile(targetPath, "probe");
     await fs.promises.symlink(targetPath, linkPath, "file");
@@ -50,8 +51,7 @@ async function canCreateFileSymlink(dir: string): Promise<boolean> {
   } catch {
     return false;
   } finally {
-    await fs.promises.rm(linkPath, { force: true });
-    await fs.promises.rm(targetPath, { force: true });
+    await fs.promises.rm(probeDir, { recursive: true, force: true });
   }
 }
 
@@ -115,7 +115,7 @@ describe("qqbot file-utils downloadFile", () => {
   // Keep the local skipIf shape while probing inside the test, avoiding
   // import-time filesystem side effects on hosts that cannot create links.
   it.skipIf(false)("rejects symlinked local media helpers", async ({ skip }) => {
-    if (!(await canCreateFileSymlink(tempDir))) {
+    if (!(await canCreateFileSymlink())) {
       skip("file symlinks are unavailable on this host");
     }
 

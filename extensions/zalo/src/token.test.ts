@@ -6,9 +6,10 @@ import { describe, expect, it } from "vitest";
 import { resolveZaloToken } from "./token.js";
 import type { ZaloConfig } from "./types.js";
 
-function canCreateFileSymlink(dir: string): boolean {
-  const targetPath = path.join(dir, "symlink-probe-target.txt");
-  const linkPath = path.join(dir, "symlink-probe-link.txt");
+function canCreateFileSymlink(): boolean {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), "zalo-symlink-probe-"));
+  const targetPath = path.join(probeDir, "target.txt");
+  const linkPath = path.join(probeDir, "link.txt");
   try {
     fs.writeFileSync(targetPath, "probe", "utf8");
     fs.symlinkSync(targetPath, linkPath, "file");
@@ -16,8 +17,7 @@ function canCreateFileSymlink(dir: string): boolean {
   } catch {
     return false;
   } finally {
-    fs.rmSync(linkPath, { force: true });
-    fs.rmSync(targetPath, { force: true });
+    fs.rmSync(probeDir, { recursive: true, force: true });
   }
 }
 
@@ -95,7 +95,7 @@ describe("resolveZaloToken", () => {
   it.runIf(true)("rejects symlinked token files", ({ skip }) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-zalo-token-"));
     try {
-      if (!canCreateFileSymlink(dir)) {
+      if (!canCreateFileSymlink()) {
         skip("file symlinks are unavailable on this host");
       }
 

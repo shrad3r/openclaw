@@ -10,6 +10,7 @@ import { TEST_BUNDLED_RUNTIME_SIDECAR_PATHS } from "../../test/helpers/bundled-r
 import type { OpenClawConfig, ConfigFileSnapshot } from "../config/types.openclaw.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import { GATEWAY_SERVICE_RUNTIME_PID_ENV } from "../daemon/constants.js";
+import type { ClawHubRiskAcknowledgementRequest } from "../infra/clawhub-install-trust.js";
 import { writePackageDistInventory } from "../infra/package-dist-inventory.js";
 import { isBetaTag } from "../infra/update-channels.js";
 import {
@@ -19,7 +20,6 @@ import {
   writeUpdatePostInstallDoctorResult,
 } from "../infra/update-doctor-result.js";
 import type { UpdateRunResult } from "../infra/update-runner.js";
-import type { ClawHubRiskAcknowledgementRequest } from "../plugins/clawhub.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import { VERSION } from "../version.js";
 import { createCliRuntimeCapture } from "./test-runtime-capture.js";

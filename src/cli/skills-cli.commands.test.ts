@@ -641,6 +641,25 @@ describe("skills cli commands", () => {
     );
   });
 
+  it("passes --acknowledge-clawhub-risk through for ClawHub skill installs", async () => {
+    installSkillFromClawHubMock.mockResolvedValue({
+      ok: true,
+      slug: "calendar",
+      version: "1.2.3",
+      targetDir: "/tmp/workspace/skills/calendar",
+    });
+
+    await runCommand(["skills", "install", "calendar", "--acknowledge-clawhub-risk"]);
+
+    expect(installSkillFromClawHubMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceDir: "/tmp/workspace",
+        slug: "calendar",
+        acknowledgeClawHubRisk: true,
+      }),
+    );
+  });
+
   it("rejects using --global and --agent together for installs", async () => {
     await expect(
       runCommand(["skills", "install", "calendar", "--global", "--agent", "main"]),
@@ -708,6 +727,29 @@ describe("skills cli commands", () => {
         workspaceDir: "/tmp/workspace",
         slug: undefined,
         forceInstall: true,
+      }),
+    );
+  });
+
+  it("passes --acknowledge-clawhub-risk through for ClawHub skill updates", async () => {
+    readTrackedClawHubSkillSlugsMock.mockResolvedValue(["calendar"]);
+    updateSkillsFromClawHubMock.mockResolvedValue([
+      {
+        ok: true,
+        slug: "calendar",
+        previousVersion: "1.2.2",
+        version: "1.2.3",
+        changed: true,
+        targetDir: "/tmp/workspace/skills/calendar",
+      },
+    ]);
+
+    await runCommand(["skills", "update", "--all", "--acknowledge-clawhub-risk"]);
+
+    expect(updateSkillsFromClawHubMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceDir: "/tmp/workspace",
+        acknowledgeClawHubRisk: true,
       }),
     );
   });

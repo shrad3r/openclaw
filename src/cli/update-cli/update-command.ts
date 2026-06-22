@@ -50,6 +50,7 @@ import {
   resolveGatewayService,
   type GatewayService,
 } from "../../daemon/service.js";
+import type { ClawHubRiskAcknowledgementRequest } from "../../infra/clawhub-install-trust.js";
 import { createLowDiskSpaceWarning } from "../../infra/disk-space.js";
 import { pathExists } from "../../infra/fs-safe.js";
 import { readJsonIfExists, writeJson } from "../../infra/json-files.js";
@@ -101,7 +102,6 @@ import {
   type PreUpdateConfigRestoreInput,
 } from "../../infra/update-post-core-context.js";
 import { runGatewayUpdate, type UpdateRunResult } from "../../infra/update-runner.js";
-import type { ClawHubRiskAcknowledgementRequest } from "../../plugins/clawhub.js";
 import { normalizePluginsConfig, resolveEffectiveEnableState } from "../../plugins/config-state.js";
 import {
   loadInstalledPluginIndexInstallRecords,

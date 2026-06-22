@@ -1,5 +1,5 @@
 import { sanitizeTerminalText } from "../../packages/terminal-core/src/safe-text.js";
-import type { ClawHubRiskAcknowledgementRequest } from "../plugins/clawhub.js";
+import type { ClawHubRiskAcknowledgementRequest } from "../infra/clawhub-install-trust.js";
 import { promptText, promptYesNo } from "./prompt.js";
 
 export type ClawHubRiskAcknowledgementCliOptions = {

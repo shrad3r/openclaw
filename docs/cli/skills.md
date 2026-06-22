@@ -31,9 +31,11 @@ openclaw skills install git:owner/repo
 openclaw skills install git:owner/repo@main
 openclaw skills install ./path/to/skill --as custom-name
 openclaw skills install <slug> --force
+openclaw skills install <slug> --acknowledge-clawhub-risk
 openclaw skills install <slug> --agent <id>
 openclaw skills install <slug> --global
 openclaw skills update <slug>
+openclaw skills update <slug> --acknowledge-clawhub-risk
 openclaw skills update <slug> --global
 openclaw skills update --all
 openclaw skills update --all --agent <id>
@@ -97,6 +99,10 @@ Notes:
 - `install --version <version>` applies only to ClawHub skill slugs.
 - `install --force` overwrites an existing workspace skill folder for the same
   slug.
+- ClawHub skill installs and updates check the selected release trust state
+  before downloading. Malicious or blocked releases are refused. Risky releases
+  require review and `--acknowledge-clawhub-risk` when a non-interactive command
+  should continue after that review.
 - `--global` targets the shared managed skills directory and cannot be combined
   with `--agent <id>`.
 - `--agent <id>` targets one configured agent workspace and overrides current

@@ -9,6 +9,7 @@ import { createTrackedTempDirs } from "../../test-utils/tracked-temp-dirs.js";
 const fetchClawHubSkillDetailMock = vi.fn();
 const fetchClawHubSkillInstallResolutionMock = vi.fn();
 const fetchClawHubSkillVerificationMock = vi.fn();
+const fetchClawHubSkillSecurityVerdictsMock = vi.fn();
 const downloadClawHubSkillArchiveMock = vi.fn();
 const downloadClawHubSkillArchiveUrlMock = vi.fn();
 const downloadClawHubGitHubSkillArchiveMock = vi.fn();
@@ -27,6 +28,7 @@ vi.mock("../../infra/clawhub.js", () => ({
   fetchClawHubSkillDetail: fetchClawHubSkillDetailMock,
   fetchClawHubSkillInstallResolution: fetchClawHubSkillInstallResolutionMock,
   fetchClawHubSkillVerification: fetchClawHubSkillVerificationMock,
+  fetchClawHubSkillSecurityVerdicts: fetchClawHubSkillSecurityVerdictsMock,
   downloadClawHubSkillArchive: downloadClawHubSkillArchiveMock,
   downloadClawHubSkillArchiveUrl: downloadClawHubSkillArchiveUrlMock,
   downloadClawHubGitHubSkillArchive: downloadClawHubGitHubSkillArchiveMock,
@@ -179,6 +181,7 @@ describe("skills-clawhub", () => {
     fetchClawHubSkillDetailMock.mockReset();
     fetchClawHubSkillInstallResolutionMock.mockReset();
     fetchClawHubSkillVerificationMock.mockReset();
+    fetchClawHubSkillSecurityVerdictsMock.mockReset();
     downloadClawHubSkillArchiveMock.mockReset();
     downloadClawHubSkillArchiveUrlMock.mockReset();
     downloadClawHubGitHubSkillArchiveMock.mockReset();
@@ -229,6 +232,28 @@ describe("skills-clawhub", () => {
       security: { status: "clean", signals: { staticScan: { engineVersion: "v2.4.24" } } },
       signature: { status: "unsigned" },
     });
+    fetchClawHubSkillSecurityVerdictsMock.mockImplementation(
+      async (params: {
+        items: Array<{ slug: string; ownerHandle?: string; version: string }>;
+      }) => ({
+        schema: "clawhub.skill.security-verdicts.v1",
+        items: params.items.map((item) => ({
+          ok: true,
+          decision: "pass",
+          reasons: [],
+          requestedSlug: item.slug,
+          requestedVersion: item.version,
+          slug: item.slug,
+          version: item.version,
+          displayName: "Agent Receipt",
+          ...(item.ownerHandle ? { publisherHandle: item.ownerHandle } : {}),
+          security: {
+            status: "clean",
+            passed: true,
+          },
+        })),
+      }),
+    );
     downloadClawHubSkillArchiveMock.mockResolvedValue({
       archivePath: "/tmp/agentreceipt.zip",
       integrity: "sha256-test",
@@ -308,6 +333,234 @@ describe("skills-clawhub", () => {
       "registry",
       "version",
     ]);
+  });
+
+  it("blocks ClawHub skill installs when release trust is malicious", async () => {
+    const warnings: string[] = [];
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["scan:malicious"],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          publisherHandle: "acme",
+          security: {
+            status: "malicious",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "@acme/agentreceipt",
+      logger: {
+        warn: (message) => warnings.push(message),
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected malicious skill install failure");
+    }
+    expect(result.error).toContain(
+      'ClawHub release "@acme/agentreceipt@1.0.0" cannot be installed',
+    );
+    expect(warnings.join("\n")).toContain("BLOCKED - ClawHub flagged this release as malicious");
+    expect(warnings.join("\n")).toContain("OpenClaw will not install this skill release");
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+    expect(downloadClawHubSkillArchiveMock).not.toHaveBeenCalled();
+  });
+
+  it("requires acknowledgement before installing suspicious ClawHub skill releases", async () => {
+    const warnings: string[] = [];
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["security.status_not_clean"],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          security: {
+            status: "suspicious",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+      logger: {
+        warn: (message) => warnings.push(message),
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected suspicious skill install failure");
+    }
+    expect(result.error).toContain("--acknowledge-clawhub-risk");
+    expect(warnings.join("\n")).toContain("REVIEW REQUIRED");
+    expect(warnings.join("\n")).toContain("A skill can change agent instructions");
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks ClawHub skill installs when moderation marks the release as malware-blocked", async () => {
+    const warnings: string[] = [];
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["moderation.malware_blocked"],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          security: {
+            status: "clean",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+      acknowledgeClawHubRisk: true,
+      logger: {
+        warn: (message) => warnings.push(message),
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected moderation-blocked skill install failure");
+    }
+    expect(result.error).toContain('ClawHub release "agentreceipt@1.0.0" cannot be installed');
+    expect(warnings.join("\n")).toContain("BLOCKED - ClawHub blocked this release");
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("requires acknowledgement when ClawHub returns a failed skill verdict with clean nested scan status", async () => {
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: [],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          security: {
+            status: "clean",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected failed skill verdict install failure");
+    }
+    expect(result.error).toContain("--acknowledge-clawhub-risk");
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the owner-qualified skill name for suspicious ClawHub acknowledgements", async () => {
+    const onClawHubRisk = vi.fn(async () => false);
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["security.status_not_clean"],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          publisherHandle: "acme",
+          security: {
+            status: "suspicious",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "@acme/agentreceipt",
+      onClawHubRisk,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(onClawHubRisk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        packageName: "@acme/agentreceipt",
+        version: "1.0.0",
+      }),
+    );
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("continues after explicit acknowledgement for suspicious ClawHub skill releases", async () => {
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["security.status_not_clean"],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          security: {
+            status: "suspicious",
+            passed: false,
+          },
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+      acknowledgeClawHubRisk: true,
+    });
+
+    expectInstalledSkill(result, {
+      slug: "agentreceipt",
+      version: "1.0.0",
+    });
+    expect(downloadClawHubSkillArchiveUrlMock).toHaveBeenCalledWith({
+      url: "https://clawhub.ai/api/v1/download?slug=agentreceipt&version=1.0.0",
+      baseUrl: undefined,
+    });
   });
 
   it("installs owner-qualified ClawHub skills without using owner as a local path", async () => {
@@ -755,6 +1008,7 @@ describe("skills-clawhub", () => {
       slug: "aiq-deploy",
       baseUrl: undefined,
     });
+    expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
     expect(downloadClawHubGitHubSkillArchiveMock).toHaveBeenCalledWith({
       repo: "NVIDIA/skills",
       commit,
@@ -809,6 +1063,7 @@ describe("skills-clawhub", () => {
       baseUrl: undefined,
       forceInstall: true,
     });
+    expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
     expectInstalledSkill(result, {
       slug: "aiq-deploy",
       version: commit,

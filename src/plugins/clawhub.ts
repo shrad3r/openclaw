@@ -16,11 +16,14 @@ import {
   loadZipArchiveWithPreflight,
 } from "../infra/archive.js";
 import {
+  ensureClawHubPackageTrustAcknowledged,
+  type ClawHubRiskAcknowledgementRequest,
+} from "../infra/clawhub-install-trust.js";
+import {
   ClawHubRequestError,
   downloadClawHubPackageArchive,
   fetchClawHubPackageArtifact,
   fetchClawHubPackageDetail,
-  fetchClawHubPackageSecurity,
   fetchClawHubPackageVersion,
   isDefaultClawHubBaseUrl,
   normalizeClawHubSha256Integrity,
@@ -35,8 +38,6 @@ import {
   type ClawHubPackageCompatibility,
   type ClawHubPackageDetail,
   type ClawHubPackageClawPackSummary,
-  type ClawHubPackageSecurityResponse,
-  type ClawHubPackageSecurityTrust,
   type ClawHubResolvedArtifact,
   type ClawHubPackageVersion,
 } from "../infra/clawhub.js";
@@ -49,20 +50,12 @@ import type { InstallSafetyOverrides } from "./install-security-scan.js";
 import { installPluginFromArchive, type InstallPluginResult } from "./install.js";
 
 export { CLAWHUB_INSTALL_ERROR_CODE };
-export type { ClawHubInstallErrorCode };
+export type { ClawHubInstallErrorCode, ClawHubRiskAcknowledgementRequest };
 
 type PluginInstallLogger = {
   info?: (message: string) => void;
   warn?: (message: string) => void;
   terminalLinks?: boolean;
-};
-
-export type ClawHubRiskAcknowledgementRequest = {
-  packageName: string;
-  version: string;
-  trust: ClawHubPackageSecurityTrust;
-  acknowledgementKind: "confirm" | "type-package";
-  warning: string;
 };
 
 type ClawHubInstallFailure = {
@@ -71,23 +64,6 @@ type ClawHubInstallFailure = {
   code?: ClawHubInstallErrorCode;
   warning?: string;
   version?: string;
-};
-
-type ClawHubTrustInstallRecordFields = Pick<
-  ClawHubPluginInstallRecordFields,
-  | "clawhubTrustDisposition"
-  | "clawhubTrustScanStatus"
-  | "clawhubTrustModerationState"
-  | "clawhubTrustReasons"
-  | "clawhubTrustPending"
-  | "clawhubTrustStale"
-  | "clawhubTrustCheckedAt"
-  | "clawhubTrustAcknowledgedAt"
->;
-
-type ClawHubTrustAcceptedResult = {
-  ok: true;
-  trustInstallRecordFields: ClawHubTrustInstallRecordFields;
 };
 
 type ClawHubFileEntryLike = {
@@ -382,173 +358,6 @@ function mapClawHubRequestError(
   return buildClawHubInstallFailure(formatErrorMessage(error));
 }
 
-const CLAWHUB_RISK_MODERATION_STATES = new Set(["blocked", "quarantined", "revoked"]);
-const CLAWHUB_BLOCKING_MODERATION_STATES = new Set(["blocked", "quarantined", "revoked"]);
-const CLAWHUB_SAFE_MODERATION_STATES = new Set(["", "approved"]);
-const CLAWHUB_NON_RISK_SCAN_STATUSES = new Set(["pending", "scan_pending", "stale", "stale_scan"]);
-const CLAWHUB_NON_RISK_REASONS = new Set([
-  "pending",
-  "pending_scan",
-  "scan:pending",
-  "scan_pending",
-  "stale",
-  "scan:stale",
-  "stale_scan",
-]);
-
-function normalizeClawHubTrustToken(value: string | null | undefined): string {
-  return normalizeOptionalString(value)?.toLowerCase() ?? "";
-}
-
-function formatClawHubTrustStatus(label: string, token: string): string {
-  return token ? `${label} is ${token}` : `${label} is missing`;
-}
-
-function formatClawHubReasonCode(reason: string): string {
-  const normalized = normalizeClawHubTrustToken(reason);
-  switch (normalized) {
-    case "scan:malicious":
-      return "malicious behavior detected";
-    case "static:malicious":
-      return "malicious behavior detected";
-    case "payload_strings":
-      return "suspicious payload strings";
-    case "scan:pending":
-    case "pending_scan":
-    case "scan_pending":
-      return "scan pending";
-    case "scan:stale":
-    case "stale_scan":
-      return "scan data stale";
-    default:
-      return reason;
-  }
-}
-
-type ClawHubTrustAssessment = {
-  disposition: "clean" | "review-recommended" | "review-required" | "blocked";
-  riskReasons: string[];
-  notices: string[];
-};
-
-function isPendingOrStaleTrustWarning(trust: ClawHubPackageSecurityTrust): boolean {
-  return trust.pending || trust.stale;
-}
-
-function isNonRiskScanStatus(trust: ClawHubPackageSecurityTrust, scanStatus: string): boolean {
-  return isPendingOrStaleTrustWarning(trust) && CLAWHUB_NON_RISK_SCAN_STATUSES.has(scanStatus);
-}
-
-function isNonRiskReason(trust: ClawHubPackageSecurityTrust, reason: string): boolean {
-  return isPendingOrStaleTrustWarning(trust) && CLAWHUB_NON_RISK_REASONS.has(reason);
-}
-
-function resolveClawHubRiskReasons(trust: ClawHubPackageSecurityTrust): string[] {
-  const reasons: string[] = [];
-  if (trust.blockedFromDownload) {
-    reasons.push("Download disabled by ClawHub for this release");
-  }
-  const scanStatus = normalizeClawHubTrustToken(trust.scanStatus);
-  if (scanStatus !== "clean" && !isNonRiskScanStatus(trust, scanStatus)) {
-    reasons.push(formatClawHubTrustStatus("security scan status", scanStatus));
-  }
-  const moderationState = normalizeClawHubTrustToken(trust.moderationState);
-  if (
-    CLAWHUB_RISK_MODERATION_STATES.has(moderationState) ||
-    !CLAWHUB_SAFE_MODERATION_STATES.has(moderationState)
-  ) {
-    reasons.push(formatClawHubTrustStatus("moderation state", moderationState));
-  }
-  for (const reason of trust.reasons) {
-    const normalized = normalizeClawHubTrustToken(reason);
-    if (normalized && !isNonRiskReason(trust, normalized)) {
-      reasons.push(formatClawHubReasonCode(reason));
-    }
-  }
-  return reasons;
-}
-
-function resolveClawHubTrustStatusNotices(trust: ClawHubPackageSecurityTrust): string[] {
-  const notices: string[] = [];
-  if (trust.pending) {
-    notices.push("security scan is pending");
-  }
-  if (trust.stale) {
-    notices.push("scan data is stale");
-  }
-  for (const reason of trust.reasons) {
-    const normalized = normalizeClawHubTrustToken(reason);
-    if (normalized && isNonRiskReason(trust, normalized)) {
-      notices.push(formatClawHubReasonCode(reason));
-    }
-  }
-  return notices;
-}
-
-function isBlockingClawHubTrust(trust: ClawHubPackageSecurityTrust): boolean {
-  if (trust.blockedFromDownload) {
-    return true;
-  }
-  if (normalizeClawHubTrustToken(trust.scanStatus) === "malicious") {
-    return true;
-  }
-  if (CLAWHUB_BLOCKING_MODERATION_STATES.has(normalizeClawHubTrustToken(trust.moderationState))) {
-    return true;
-  }
-  return trust.reasons.some((reason) => {
-    const normalized = normalizeClawHubTrustToken(reason);
-    return normalized === "scan:malicious" || normalized === "static:malicious";
-  });
-}
-
-function hasMaliciousClawHubTrustSignal(trust: ClawHubPackageSecurityTrust): boolean {
-  if (normalizeClawHubTrustToken(trust.scanStatus) === "malicious") {
-    return true;
-  }
-  return trust.reasons.some((reason) => {
-    const normalized = normalizeClawHubTrustToken(reason);
-    return normalized === "scan:malicious" || normalized === "static:malicious";
-  });
-}
-
-function assessClawHubTrust(trust: ClawHubPackageSecurityTrust): ClawHubTrustAssessment {
-  const riskReasons = resolveClawHubRiskReasons(trust);
-  const notices = resolveClawHubTrustStatusNotices(trust);
-  if (riskReasons.length === 0 && notices.length === 0) {
-    return { disposition: "clean", riskReasons, notices };
-  }
-  if (isBlockingClawHubTrust(trust)) {
-    return { disposition: "blocked", riskReasons, notices };
-  }
-  if (riskReasons.length > 0) {
-    return { disposition: "review-required", riskReasons, notices };
-  }
-  return { disposition: "review-recommended", riskReasons, notices };
-}
-
-function buildClawHubTrustInstallRecordFields(params: {
-  trust: ClawHubPackageSecurityTrust;
-  assessment: ClawHubTrustAssessment;
-  checkedAt: string;
-  acknowledgedAt?: string;
-}): ClawHubTrustInstallRecordFields {
-  const scanStatus = normalizeClawHubTrustToken(params.trust.scanStatus);
-  const moderationState = normalizeClawHubTrustToken(params.trust.moderationState);
-  const reasons = params.trust.reasons
-    .map((reason) => normalizeOptionalString(reason))
-    .filter((reason): reason is string => Boolean(reason));
-  return {
-    clawhubTrustDisposition: params.assessment.disposition,
-    ...(scanStatus ? { clawhubTrustScanStatus: scanStatus } : {}),
-    ...(moderationState ? { clawhubTrustModerationState: moderationState } : {}),
-    ...(reasons.length > 0 ? { clawhubTrustReasons: reasons } : {}),
-    ...(params.trust.pending ? { clawhubTrustPending: true } : {}),
-    ...(params.trust.stale ? { clawhubTrustStale: true } : {}),
-    clawhubTrustCheckedAt: params.checkedAt,
-    ...(params.acknowledgedAt ? { clawhubTrustAcknowledgedAt: params.acknowledgedAt } : {}),
-  };
-}
-
 function encodeClawHubPackagePath(packageName: string): string {
   return packageName
     .split("/")
@@ -560,331 +369,12 @@ function resolveClawHubPluginUrl(params: { baseUrl?: string; packageName: string
   return `${resolveClawHubBaseUrl(params.baseUrl)}/plugins/${encodeClawHubPackagePath(params.packageName)}`;
 }
 
-function resolveClawHubSecurityLinks(params: { baseUrl?: string; packageName: string }) {
-  const plugin = resolveClawHubPluginUrl(params);
-  return {
-    plugin,
-    clawscan: `${plugin}/security/clawscan`,
-    staticAnalysis: `${plugin}/security/static-analysis`,
-    virustotal: `${plugin}/security/virustotal`,
-  };
-}
-
 function padRight(value: string, width: number): string {
   return `${value}${" ".repeat(Math.max(0, width - visibleWidth(value)))}`;
 }
 
-function wrapWords(text: string, width: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (visibleWidth(next) > width && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) {
-    lines.push(line);
-  }
-  return lines;
-}
-
-function renderClawHubTrustBox(title: string, lines: string[]): string {
-  const columns = Math.max(72, Math.min(process.stdout.columns ?? 88, 104));
-  const innerWidth = Math.max(54, Math.min(columns - 4, 78));
-  const totalWidth = innerWidth + 4;
-  const borderWidth = totalWidth - 2;
-  const titleSegment = `─ ${title} `;
-  const titleFillWidth = Math.max(0, borderWidth - visibleWidth(titleSegment));
-  const top = `╭${titleSegment}${"─".repeat(titleFillWidth)}╮`;
-  const bottom = `╰${"─".repeat(borderWidth)}╯`;
-  const body = lines.flatMap((line) => {
-    if (line === "") {
-      return [`│ ${" ".repeat(innerWidth)} │`];
-    }
-    return wrapWords(line, innerWidth).map((wrapped) => `│ ${padRight(wrapped, innerWidth)} │`);
-  });
-  return [top, ...body, bottom].join("\n");
-}
-
-function formatLinkedClawHubValue(label: string, url: string, terminalLinks?: boolean): string {
-  return formatTerminalLink(label, sanitizeTerminalText(url), {
-    fallback: label,
-    ...(terminalLinks !== undefined ? { force: terminalLinks } : {}),
-  });
-}
-
-function formatClawHubTrustEvidenceLines(params: {
-  trust: ClawHubPackageSecurityTrust;
-  assessment: ClawHubTrustAssessment;
-  links: ReturnType<typeof resolveClawHubSecurityLinks>;
-  terminalLinks?: boolean;
-}): string[] {
-  const lines: string[] = [];
-  const scanStatus = normalizeClawHubTrustToken(params.trust.scanStatus);
-  if (scanStatus) {
-    lines.push(
-      `• Security scan:     ${formatLinkedClawHubValue(sanitizeTerminalText(scanStatus), params.links.clawscan, params.terminalLinks)}`,
-    );
-  }
-  const moderationState = normalizeClawHubTrustToken(params.trust.moderationState);
-  if (moderationState && !CLAWHUB_SAFE_MODERATION_STATES.has(moderationState)) {
-    lines.push(`• Moderation:        ${sanitizeTerminalText(moderationState)}`);
-  }
-  for (const reason of params.trust.reasons) {
-    const normalized = normalizeClawHubTrustToken(reason);
-    if (!normalized) {
-      continue;
-    }
-    if (
-      params.assessment.disposition === "review-recommended" &&
-      isNonRiskReason(params.trust, normalized)
-    ) {
-      continue;
-    }
-    switch (normalized) {
-      case "scan:malicious":
-        lines.push(
-          `• Scanner:           ${formatLinkedClawHubValue("malicious behavior detected", params.links.clawscan, params.terminalLinks)}`,
-        );
-        break;
-      case "static:malicious":
-        lines.push(
-          `• Static analysis:   ${formatLinkedClawHubValue("malicious behavior detected", params.links.staticAnalysis, params.terminalLinks)}`,
-        );
-        break;
-      case "payload_strings":
-        lines.push(
-          `• Finding:           ${formatLinkedClawHubValue("suspicious payload strings", params.links.staticAnalysis, params.terminalLinks)}`,
-        );
-        break;
-      default:
-        lines.push(`• Finding:           ${sanitizeTerminalText(formatClawHubReasonCode(reason))}`);
-        break;
-    }
-  }
-  if (params.assessment.disposition === "review-recommended") {
-    for (const notice of params.assessment.notices) {
-      lines.push(`• Status:            ${sanitizeTerminalText(notice)}`);
-    }
-  }
-  if (params.trust.blockedFromDownload) {
-    const blockedReason = "Download disabled by ClawHub for this release";
-    lines.push(`• Finding:           ${blockedReason}`);
-  }
-  if (lines.length === 0) {
-    for (const reason of params.assessment.riskReasons) {
-      lines.push(`• Finding:           ${sanitizeTerminalText(reason)}`);
-    }
-  }
-  return lines;
-}
-
-function formatClawHubRawLinks(links: ReturnType<typeof resolveClawHubSecurityLinks>): string {
-  const plugin = sanitizeTerminalText(links.plugin);
-  const clawscan = sanitizeTerminalText(links.clawscan);
-  const staticAnalysis = sanitizeTerminalText(links.staticAnalysis);
-  const virustotal = sanitizeTerminalText(links.virustotal);
-  return [
-    "",
-    "Links:",
-    `  Plugin           ${plugin}`,
-    `  Security scan    ${clawscan}`,
-    `  Static analysis  ${staticAnalysis}`,
-    `  VirusTotal       ${virustotal}`,
-  ].join("\n");
-}
-
-function formatClawHubTrustWarning(params: {
-  baseUrl?: string;
-  packageName: string;
-  version: string;
-  trust: ClawHubPackageSecurityTrust;
-  assessment: ClawHubTrustAssessment;
-  mode?: "install" | "update";
-  terminalLinks?: boolean;
-}): string {
-  const links = resolveClawHubSecurityLinks({
-    baseUrl: params.baseUrl,
-    packageName: params.packageName,
-  });
-  const evidenceLines = formatClawHubTrustEvidenceLines({
-    trust: params.trust,
-    assessment: params.assessment,
-    links,
-    terminalLinks: params.terminalLinks,
-  });
-  if (params.assessment.disposition === "blocked") {
-    const blockedAction =
-      params.mode === "update"
-        ? "OpenClaw will not update to this release from ClawHub."
-        : "OpenClaw will not install this release from ClawHub.";
-    const blockedTitle = hasMaliciousClawHubTrustSignal(params.trust)
-      ? "BLOCKED - ClawHub flagged this release as malicious"
-      : "BLOCKED - ClawHub blocked this release";
-    return [
-      renderClawHubTrustBox(blockedTitle, [
-        ...evidenceLines,
-        "",
-        blockedAction,
-        "Choose a different version, review the ClawHub security details, or contact the package maintainer if you believe this is wrong.",
-      ]),
-      formatClawHubRawLinks(links),
-    ].join("\n");
-  }
-  if (params.assessment.disposition === "review-required") {
-    return [
-      renderClawHubTrustBox("REVIEW REQUIRED - ClawHub flagged this release for security review", [
-        ...evidenceLines,
-        "",
-        "A plugin can execute code on this machine and access OpenClaw data, credentials, tools, and configured services.",
-        `Review the ClawHub security details before ${params.mode === "update" ? "updating" : "installing"}.`,
-      ]),
-      formatClawHubRawLinks(links),
-    ].join("\n");
-  }
-  return [
-    renderClawHubTrustBox("REVIEW RECOMMENDED - ClawHub has not completed a fresh clean check", [
-      ...evidenceLines,
-      "",
-      "This does not mean the plugin is malicious, but ClawHub has not completed a clean security check for this release yet.",
-      `Review the ClawHub security details before ${params.mode === "update" ? "updating" : "installing"}.`,
-    ]),
-    formatClawHubRawLinks(links),
-  ].join("\n");
-}
-
 function formatClawHubReleaseLabel(packageName: string, version: string): string {
   return `${sanitizeTerminalText(packageName)}@${sanitizeTerminalText(version)}`;
-}
-
-function validateClawHubSecurityIdentity(params: {
-  security: ClawHubPackageSecurityResponse;
-  packageName: string;
-  version: string;
-}): ClawHubInstallFailure | null {
-  const responsePackageName = normalizeOptionalString(params.security.package?.name);
-  if (responsePackageName !== params.packageName) {
-    return buildClawHubInstallFailure(
-      `ClawHub release trust check for "${formatClawHubReleaseLabel(params.packageName, params.version)}" returned package "${sanitizeTerminalText(responsePackageName ?? "unknown")}".`,
-      CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE,
-      undefined,
-      params.version,
-    );
-  }
-  const responseVersion = normalizeOptionalString(params.security.release?.version);
-  if (responseVersion !== params.version) {
-    return buildClawHubInstallFailure(
-      `ClawHub release trust check for "${formatClawHubReleaseLabel(params.packageName, params.version)}" returned version "${sanitizeTerminalText(responseVersion ?? "unknown")}".`,
-      CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE,
-      undefined,
-      params.version,
-    );
-  }
-  return null;
-}
-
-async function ensureClawHubPackageTrustAcknowledged(params: {
-  packageName: string;
-  version: string;
-  baseUrl?: string;
-  token?: string;
-  timeoutMs?: number;
-  acknowledgeClawHubRisk?: boolean;
-  onClawHubRisk?: (request: ClawHubRiskAcknowledgementRequest) => boolean | Promise<boolean>;
-  logger?: PluginInstallLogger;
-  mode?: "install" | "update";
-}): Promise<ClawHubInstallFailure | ClawHubTrustAcceptedResult> {
-  let trust: ClawHubPackageSecurityTrust;
-  try {
-    const security = await fetchClawHubPackageSecurity({
-      name: params.packageName,
-      version: params.version,
-      baseUrl: params.baseUrl,
-      token: params.token,
-      timeoutMs: params.timeoutMs,
-    });
-    const identityFailure = validateClawHubSecurityIdentity({
-      security,
-      packageName: params.packageName,
-      version: params.version,
-    });
-    if (identityFailure) {
-      return identityFailure;
-    }
-    trust = security.trust;
-  } catch (error) {
-    return buildClawHubInstallFailure(
-      `ClawHub release trust check failed for "${formatClawHubReleaseLabel(params.packageName, params.version)}": ${sanitizeTerminalText(formatErrorMessage(error))}`,
-      CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE,
-      undefined,
-      params.version,
-    );
-  }
-
-  const assessment = assessClawHubTrust(trust);
-  const checkedAt = new Date().toISOString();
-  const acceptTrust = (acknowledgedAt?: string): ClawHubTrustAcceptedResult => ({
-    ok: true,
-    trustInstallRecordFields: buildClawHubTrustInstallRecordFields({
-      trust,
-      assessment,
-      checkedAt,
-      ...(acknowledgedAt ? { acknowledgedAt } : {}),
-    }),
-  });
-  const warning = formatClawHubTrustWarning({
-    baseUrl: params.baseUrl,
-    packageName: params.packageName,
-    version: params.version,
-    trust,
-    assessment,
-    mode: params.mode,
-    terminalLinks: params.logger?.terminalLinks,
-  });
-  if (assessment.disposition === "clean") {
-    return acceptTrust();
-  }
-
-  params.logger?.warn?.(warning);
-  if (assessment.disposition === "review-recommended") {
-    return acceptTrust();
-  }
-  if (assessment.disposition === "blocked") {
-    return buildClawHubInstallFailure(
-      `ClawHub release "${formatClawHubReleaseLabel(params.packageName, params.version)}" cannot be installed because ClawHub flagged it as blocked or malicious. Review the security details above or choose a different version.`,
-      CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED,
-      warning,
-      params.version,
-    );
-  }
-  if (params.acknowledgeClawHubRisk) {
-    return acceptTrust(new Date().toISOString());
-  }
-
-  const acknowledged = params.onClawHubRisk
-    ? await params.onClawHubRisk({
-        packageName: params.packageName,
-        version: params.version,
-        trust,
-        acknowledgementKind:
-          assessment.disposition === "review-required" ? "type-package" : "confirm",
-        warning,
-      })
-    : false;
-  if (acknowledged) {
-    return acceptTrust(new Date().toISOString());
-  }
-  return buildClawHubInstallFailure(
-    `ClawHub release "${formatClawHubReleaseLabel(params.packageName, params.version)}" was not installed because the risk was not acknowledged. Review the warning above; to continue anyway, rerun with --acknowledge-clawhub-risk.`,
-    CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED,
-    warning,
-    params.version,
-  );
 }
 
 function isMissingArtifactResolverRoute(error: unknown): boolean {
@@ -1678,7 +1168,7 @@ export async function installPluginFromClawHub(
     logger: params.logger,
   });
   const trustResult = await ensureClawHubPackageTrustAcknowledged({
-    packageName: canonicalPackageName,
+    subject: { kind: "plugin", packageName: canonicalPackageName },
     version: versionState.version,
     baseUrl: params.baseUrl,
     token: params.token,

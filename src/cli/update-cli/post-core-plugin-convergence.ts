@@ -3,7 +3,7 @@ import { repairMissingConfiguredPluginInstalls } from "../../commands/doctor/sha
 import { UPDATE_POST_CORE_CONVERGENCE_ENV } from "../../commands/doctor/shared/update-phase.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { PluginInstallRecord } from "../../config/types.plugins.js";
-import type { ClawHubRiskAcknowledgementRequest } from "../../plugins/clawhub.js";
+import type { ClawHubRiskAcknowledgementRequest } from "../../infra/clawhub-install-trust.js";
 import { normalizePluginsConfig, resolveEffectiveEnableState } from "../../plugins/config-state.js";
 import { resolveDefaultPluginNpmDir } from "../../plugins/install-paths.js";
 import { listManagedPluginNpmRoots } from "../../plugins/npm-project-roots.js";

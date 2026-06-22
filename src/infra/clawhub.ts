@@ -330,6 +330,7 @@ export type ClawHubSkillVerificationResponse = {
 
 export type ClawHubSkillSecurityVerdictRequestItem = {
   slug: string;
+  ownerHandle?: string;
   version: string;
 };
 

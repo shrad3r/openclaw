@@ -57,7 +57,7 @@ function normalizeCommanderClawHubRiskOption(opts: CommanderUpdateOptions): bool
 function inheritedUpdateClawHubRisk(command?: Command): boolean {
   return Boolean(
     inheritOptionFromParent<boolean>(command, "acknowledgeClawhubRisk") ??
-      inheritOptionFromParent<boolean>(command, "acknowledgeClawHubRisk"),
+    inheritOptionFromParent<boolean>(command, "acknowledgeClawHubRisk"),
   );
 }
 

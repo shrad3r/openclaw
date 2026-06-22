@@ -331,6 +331,7 @@ function resolveClawHubTrustAccent(
     case "clean":
       return theme.success;
   }
+  return theme.info;
 }
 
 function formatClawHubEvidenceLine(params: {
@@ -678,7 +679,8 @@ function mapSkillSecurityVerdictToPackageSecurity(params: {
   const reasons = params.item.reasons
     .map((reason) => normalizeOptionalString(reason))
     .filter((reason): reason is string => Boolean(reason));
-  const verdictPassed = params.item.ok === true && decision === "pass" && securityPassed !== false;
+  const securityPassedAllowsInstall = securityPassed ?? true;
+  const verdictPassed = params.item.ok && decision === "pass" && securityPassedAllowsInstall;
   const scanStatus = verdictPassed
     ? securityStatus || "clean"
     : securityStatus && securityStatus !== "clean"

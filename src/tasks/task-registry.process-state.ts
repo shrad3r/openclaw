@@ -10,6 +10,8 @@ export type TaskRegistryProcessState = {
   taskIdsByParentFlowId: Map<string, Set<string>>;
   taskIdsByRelatedSessionKey: Map<string, Set<string>>;
   tasksWithPendingDelivery: Set<string>;
+  /** Last delivered state-change channel copy per task for duplicate suppression. */
+  taskChannelNotifySnapshots: Map<string, { at: number; text: string }>;
 };
 
 const TASK_REGISTRY_PROCESS_STATE_KEY = Symbol.for("openclaw.taskRegistry.state");
@@ -27,6 +29,7 @@ export function getTaskRegistryProcessState(): TaskRegistryProcessState {
     taskIdsByParentFlowId: new Map<string, Set<string>>(),
     taskIdsByRelatedSessionKey: new Map<string, Set<string>>(),
     tasksWithPendingDelivery: new Set<string>(),
+    taskChannelNotifySnapshots: new Map<string, { at: number; text: string }>(),
   };
   return globalState[TASK_REGISTRY_PROCESS_STATE_KEY];
 }

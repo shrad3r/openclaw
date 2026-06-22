@@ -85,4 +85,33 @@ describe("compaction token accounting sanitization", () => {
     expect(sanitized[0]).not.toHaveProperty("details");
     expect(sanitized.map((message) => message.role)).toEqual(["toolResult", "user"]);
   });
+
+  it("excludes transcript bookkeeping assistant rows from compaction planning", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "assistant",
+        provider: "openclaw",
+        model: "delivery-mirror",
+        content: [{ type: "text", text: "Background task update: noisy fleet ping" }],
+        timestamp: 1,
+      } as AgentMessage,
+      {
+        role: "assistant",
+        provider: "openclaw",
+        model: "gateway-injected",
+        content: [{ type: "text", text: "gateway bookkeeping" }],
+        timestamp: 2,
+      } as AgentMessage,
+      {
+        role: "user",
+        content: "hello",
+        timestamp: 3,
+      },
+    ];
+
+    const sanitized = sanitizeCompactionMessages(messages);
+
+    expect(sanitized).toHaveLength(1);
+    expect(sanitized[0]?.role).toBe("user");
+  });
 });

@@ -1267,6 +1267,7 @@ describe("task-registry", () => {
   it("delivers non-delegated ACP completion to the requester channel when a delivery origin exists", async () => {
     await withTaskRegistryTempDir(async () => {
       resetTaskRegistryMemoryForTest();
+      resetSystemEventsForTest();
       hoisted.sendMessageMock.mockResolvedValue({
         channel: "notifychat",
         to: "notifychat:123",
@@ -1312,10 +1313,10 @@ describe("task-registry", () => {
         threadId: "321",
       });
       expect(String(message.content)).toContain("Background task done: ACP background task");
-      expectRecordFields(message.mirror, {
-        sessionKey: "agent:main:main",
-      });
-      expect(peekSystemEvents("agent:main:main")).toStrictEqual([]);
+      expect(message.mirror).toBeUndefined();
+      expect(peekSystemEvents("agent:main:main")).toEqual([
+        "Background task done: ACP background task (run run-dire).",
+      ]);
     });
   });
 
@@ -1996,9 +1997,7 @@ describe("task-registry", () => {
       expectRecordFields(message, {
         idempotencyKey: `task-terminal:${task.taskId}:succeeded:blocked`,
       });
-      expectRecordFields(message.mirror, {
-        idempotencyKey: `task-terminal:${task.taskId}:succeeded:blocked`,
-      });
+      expect(message.mirror).toBeUndefined();
       expectRecordFields(requireTaskByRunId("run-racing-delivery"), {
         deliveryStatus: "delivered",
       });
@@ -3176,6 +3175,47 @@ describe("task-registry", () => {
     });
   });
 
+  it("suppresses duplicate state-change channel notifications for the same task", async () => {
+    await withTaskRegistryTempDir(async () => {
+      resetTaskRegistryMemoryForTest();
+      hoisted.sendMessageMock.mockResolvedValue({
+        channel: "guildchat",
+        to: "guildchat:123",
+        via: "direct",
+      });
+
+      const task = createTaskRecord({
+        runtime: "acp",
+        ownerKey: "agent:main:main",
+        scopeKind: "session",
+        requesterOrigin: {
+          channel: "guildchat",
+          to: "guildchat:123",
+        },
+        childSessionKey: "agent:codex:acp:child",
+        runId: "run-state-change-throttle",
+        task: "Investigate issue",
+        status: "running",
+        notifyPolicy: "state_changes",
+      });
+
+      const duplicateText = "Background task update: ACP background task. No output for 60s.";
+      await maybeDeliverTaskStateChangeUpdate(task.taskId, {
+        at: 100,
+        kind: "progress",
+        summary: "No output for 60s.",
+      });
+      await maybeDeliverTaskStateChangeUpdate(task.taskId, {
+        at: 200,
+        kind: "progress",
+        summary: "No output for 60s.",
+      });
+
+      expect(hoisted.sendMessageMock).toHaveBeenCalledTimes(1);
+      expect(String(sentMessageCall().content)).toBe(duplicateText);
+    });
+  });
+
   it("keeps background ACP progress off the foreground lane and only sends a terminal notify", async () => {
     await withTaskRegistryTempDir(async () => {
       resetTaskRegistryMemoryForTest();
@@ -3289,7 +3329,9 @@ describe("task-registry", () => {
         content:
           "Background task failed: ACP background task (run run-fail). Permission denied by ACP runtime",
       });
-      expect(peekSystemEvents("agent:main:main")).toStrictEqual([]);
+      expect(peekSystemEvents("agent:main:main")).toEqual([
+        "Background task failed: ACP background task (run run-fail). Permission denied by ACP runtime",
+      ]);
     });
   });
 

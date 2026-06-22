@@ -1103,6 +1103,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     channel,
     toolContext: input.toolContext,
   });
+  const skipTranscriptMirror = readBooleanParam(params, "noTranscriptMirror") === true;
   const { resolvedThreadId, outboundRoute } = await prepareOutboundMirrorRoute({
     cfg,
     channel,
@@ -1196,7 +1197,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
       deps: input.deps,
       dryRun,
       mirror:
-        outboundRoute && !dryRun
+        outboundRoute && !dryRun && !skipTranscriptMirror
           ? {
               sessionKey: outboundRoute.sessionKey,
               agentId,

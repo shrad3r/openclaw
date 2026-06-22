@@ -2019,6 +2019,58 @@ describe("runMemoryFlushIfNeeded", () => {
     expect(compactCall.sessionFile).toContain("large-session.jsonl");
   });
 
+  it("does not trigger preflight compaction for transcript bookkeeping rows alone", async () => {
+    const sessionFile = path.join(rootDir, "mirror-only-session.jsonl");
+    const mirrorLine = JSON.stringify({
+      type: "message",
+      message: {
+        role: "assistant",
+        provider: "openclaw",
+        model: "delivery-mirror",
+        content: [{ type: "text", text: "x".repeat(512) }],
+      },
+    });
+    await fs.writeFile(sessionFile, `${mirrorLine}\n`, "utf8");
+    const sessionEntry: SessionEntry = {
+      sessionId: "session",
+      sessionFile,
+      updatedAt: Date.now(),
+      totalTokens: 10,
+      totalTokensFresh: true,
+      compactionCount: 0,
+    };
+    const replyOperation = createReplyOperation();
+
+    const entry = await runPreflightCompactionIfNeeded({
+      cfg: {
+        agents: {
+          defaults: {
+            compaction: {
+              truncateAfterCompaction: true,
+              maxActiveTranscriptBytes: "10b",
+            },
+          },
+        },
+      },
+      followupRun: createTestFollowupRun({
+        sessionId: "session",
+        sessionFile,
+        sessionKey: "main",
+      }),
+      defaultModel: "anthropic/claude-opus-4-6",
+      agentCfgContextTokens: 100_000,
+      sessionEntry,
+      sessionStore: { main: sessionEntry },
+      sessionKey: "main",
+      storePath: path.join(rootDir, "sessions.json"),
+      isHeartbeat: false,
+      replyOperation,
+    });
+
+    expect(entry?.compactionCount).toBe(0);
+    expect(compactEmbeddedAgentSessionMock).not.toHaveBeenCalled();
+  });
+
   it("emits preflight compaction notices around a successful budget compaction", async () => {
     const sessionFile = path.join(rootDir, "notify-session.jsonl");
     await fs.writeFile(

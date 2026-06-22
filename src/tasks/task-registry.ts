@@ -27,6 +27,7 @@ import {
   shouldAutoDeliverTaskStateChange,
   shouldAutoDeliverTaskTerminalUpdate,
   shouldSuppressDuplicateTerminalDelivery,
+  shouldThrottleTaskStateChangeChannelNotify,
   shouldUseParentReviewTaskTerminalMessage,
 } from "./task-executor-policy.js";
 import type { TaskFlowRecord } from "./task-flow-registry.types.js";
@@ -71,6 +72,7 @@ const taskIdsByOwnerKey = taskRegistryProcessState.taskIdsByOwnerKey;
 const taskIdsByParentFlowId = taskRegistryProcessState.taskIdsByParentFlowId;
 const taskIdsByRelatedSessionKey = taskRegistryProcessState.taskIdsByRelatedSessionKey;
 const tasksWithPendingDelivery = taskRegistryProcessState.tasksWithPendingDelivery;
+const taskChannelNotifySnapshots = taskRegistryProcessState.taskChannelNotifySnapshots;
 let listenerStarted = false;
 let listenerStop: (() => void) | null = null;
 let restoreAttempted = false;
@@ -399,6 +401,7 @@ function clearTaskRegistryMemory(): void {
   taskIdsByParentFlowId.clear();
   taskIdsByRelatedSessionKey.clear();
   tasksWithPendingDelivery.clear();
+  taskChannelNotifySnapshots.clear();
 }
 
 function ensureDeliveryStatus(params: {
@@ -1365,12 +1368,10 @@ export async function maybeDeliverTaskTerminalUpdate(taskId: string): Promise<Ta
         content: directEventText,
         agentId: requesterAgentId,
         idempotencyKey,
-        mirror: {
-          sessionKey: ownerSessionKey,
-          agentId: requesterAgentId,
-          idempotencyKey,
-        },
       });
+      if (latest.terminalOutcome !== "blocked") {
+        queueTaskSystemEvent(latest, directEventText);
+      }
       if (latest.terminalOutcome === "blocked") {
         queueBlockedTaskFollowup(latest);
       }
@@ -1424,6 +1425,23 @@ export async function maybeDeliverTaskStateChangeUpdate(
   if (!eventText) {
     return cloneTaskRecord(current);
   }
+  const lastChannelNotify = taskChannelNotifySnapshots.get(current.taskId);
+  if (
+    shouldThrottleTaskStateChangeChannelNotify({
+      lastChannelNotifyAt: lastChannelNotify?.at,
+      lastChannelNotifyText: lastChannelNotify?.text,
+      nextText: eventText,
+    })
+  ) {
+    upsertTaskDeliveryState({
+      taskId: current.taskId,
+      requesterOrigin: deliveryState?.requesterOrigin,
+      lastNotifiedEventAt: latestEvent.at,
+    });
+    return updateTask(current.taskId, {
+      lastEventAt: Date.now(),
+    });
+  }
   try {
     const owner = resolveTaskDeliveryOwner(current);
     const ownerSessionKey = owner.sessionKey?.trim();
@@ -1459,11 +1477,10 @@ export async function maybeDeliverTaskStateChangeUpdate(
       content: eventText,
       agentId: requesterAgentId,
       idempotencyKey,
-      mirror: {
-        sessionKey: ownerSessionKey,
-        agentId: requesterAgentId,
-        idempotencyKey,
-      },
+    });
+    taskChannelNotifySnapshots.set(current.taskId, {
+      at: Date.now(),
+      text: eventText,
     });
     upsertTaskDeliveryState({
       taskId,

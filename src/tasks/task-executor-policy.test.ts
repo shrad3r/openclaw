@@ -8,7 +8,9 @@ import {
   shouldAutoDeliverTaskStateChange,
   shouldAutoDeliverTaskTerminalUpdate,
   shouldSuppressDuplicateTerminalDelivery,
+  shouldThrottleTaskStateChangeChannelNotify,
   shouldUseParentReviewTaskTerminalMessage,
+  TASK_STATE_CHANGE_CHANNEL_MIN_INTERVAL_MS,
 } from "./task-executor-policy.js";
 import type { TaskEventRecord, TaskRecord } from "./task-registry.types.js";
 
@@ -214,6 +216,36 @@ describe("task-executor-policy", () => {
           status: "succeeded",
         }),
       ),
+    ).toBe(false);
+  });
+
+  it("suppresses duplicate state-change channel copy within the minimum interval", () => {
+    const now = 1_000_000;
+    const text = "Background task update: ACP import. No output for 60s.";
+    expect(shouldThrottleTaskStateChangeChannelNotify({})).toBe(false);
+    expect(
+      shouldThrottleTaskStateChangeChannelNotify({
+        lastChannelNotifyAt: now - 60_000,
+        lastChannelNotifyText: text,
+        nextText: "Background task update: ACP import. Started.",
+        now,
+      }),
+    ).toBe(false);
+    expect(
+      shouldThrottleTaskStateChangeChannelNotify({
+        lastChannelNotifyAt: now - 60_000,
+        lastChannelNotifyText: text,
+        nextText: text,
+        now,
+      }),
+    ).toBe(true);
+    expect(
+      shouldThrottleTaskStateChangeChannelNotify({
+        lastChannelNotifyAt: now - TASK_STATE_CHANGE_CHANNEL_MIN_INTERVAL_MS,
+        lastChannelNotifyText: text,
+        nextText: text,
+        now,
+      }),
     ).toBe(false);
   });
 });

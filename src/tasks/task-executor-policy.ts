@@ -130,6 +130,26 @@ export function shouldAutoDeliverTaskStateChange(task: TaskRecord): boolean {
   );
 }
 
+/** Minimum spacing before repeating the same state-change channel copy for one task. */
+export const TASK_STATE_CHANGE_CHANNEL_MIN_INTERVAL_MS = 5 * 60_000;
+
+/** Suppresses duplicate state-change channel copy so flapping tasks do not flood channels. */
+export function shouldThrottleTaskStateChangeChannelNotify(params: {
+  lastChannelNotifyAt?: number;
+  lastChannelNotifyText?: string;
+  nextText?: string;
+  now?: number;
+}): boolean {
+  const lastAt = params.lastChannelNotifyAt ?? 0;
+  const lastText = params.lastChannelNotifyText?.trim();
+  const nextText = params.nextText?.trim();
+  if (lastAt <= 0 || !lastText || !nextText || lastText !== nextText) {
+    return false;
+  }
+  const now = params.now ?? Date.now();
+  return now - lastAt < TASK_STATE_CHANGE_CHANNEL_MIN_INTERVAL_MS;
+}
+
 export function shouldSuppressDuplicateTerminalDelivery(params: {
   task: TaskRecord;
   preferredTaskId?: string;

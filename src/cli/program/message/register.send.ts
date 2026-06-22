@@ -35,6 +35,11 @@ export function registerMessageSendCommand(message: Command, helpers: MessageCli
           "--silent",
           "Send message silently without notification (Telegram + Discord)",
           false,
+        )
+        .option(
+          "--no-transcript-mirror",
+          "Deliver to the channel without appending a delivery-mirror row to the session transcript",
+          false,
         ),
     )
     .action(async (opts) => {

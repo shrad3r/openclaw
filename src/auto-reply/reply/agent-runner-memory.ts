@@ -31,6 +31,7 @@ import {
   applySessionStoreEntryPatch,
   updateSessionStoreEntry,
 } from "../../config/sessions.js";
+import { measureSessionTranscriptByteSize } from "../../config/sessions/transcript-byte-size.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { readSessionMessagesAsync } from "../../gateway/session-utils.fs.js";
 import { logVerbose } from "../../globals.js";
@@ -485,12 +486,9 @@ async function readSessionLogSnapshot(params: {
   }
 
   if (params.includeByteSize) {
-    const scannedSize = usageScan?.byteSize;
-    if (typeof scannedSize === "number" && Number.isFinite(scannedSize) && scannedSize >= 0) {
-      snapshot.byteSize = Math.floor(scannedSize);
-      return snapshot;
-    }
-    snapshot.byteSize = await readSessionLogByteSize(logPath);
+    snapshot.byteSize = await measureSessionTranscriptByteSize(logPath, {
+      excludeTranscriptOnlyOpenClawAssistant: true,
+    });
   }
 
   return snapshot;
@@ -503,17 +501,9 @@ type SessionLogUsageScan = {
 };
 
 async function readSessionLogByteSize(logPath: string): Promise<number | undefined> {
-  let handle: fs.promises.FileHandle | undefined;
-  try {
-    handle = await fs.promises.open(logPath, "r");
-    const stat = await handle.stat();
-    const size = Math.floor(stat.size);
-    return Number.isFinite(size) && size >= 0 ? size : undefined;
-  } catch {
-    return undefined;
-  } finally {
-    await handle?.close();
-  }
+  return measureSessionTranscriptByteSize(logPath, {
+    excludeTranscriptOnlyOpenClawAssistant: true,
+  });
 }
 
 async function readLastNonzeroUsageFromSessionLog(logPath: string): Promise<SessionLogUsageScan> {

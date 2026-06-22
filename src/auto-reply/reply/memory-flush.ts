@@ -6,6 +6,24 @@ import { parseNonNegativeByteSize } from "../../config/byte-size.js";
 import { resolveFreshSessionTotalTokens, type SessionEntry } from "../../config/sessions.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 
+/** Leave room for bootstrap + at least one user turn on smaller context windows. */
+const MIN_ACTIVE_CONVERSATION_HEADROOM_TOKENS = 16_000;
+
+export function resolveEffectiveCompactionReserveTokensFloor(params: {
+  contextWindowTokens: number;
+  reserveTokensFloor: number;
+  softThresholdTokens: number;
+}): number {
+  const contextWindow = Math.max(1, Math.floor(params.contextWindowTokens));
+  const reserveFloor = Math.max(0, Math.floor(params.reserveTokensFloor));
+  const softThreshold = Math.max(0, Math.floor(params.softThresholdTokens));
+  const cappedReserve = contextWindow - softThreshold - MIN_ACTIVE_CONVERSATION_HEADROOM_TOKENS;
+  if (cappedReserve <= 0) {
+    return reserveFloor;
+  }
+  return Math.min(reserveFloor, cappedReserve);
+}
+
 export function resolveMemoryFlushContextWindowTokens(params: {
   modelId?: string;
   agentCfgContextTokens?: number;
@@ -119,8 +137,12 @@ function resolveMemoryFlushGateState<
   }
 
   const contextWindow = Math.max(1, Math.floor(params.contextWindowTokens));
-  const reserveTokens = Math.max(0, Math.floor(params.reserveTokensFloor));
   const softThreshold = Math.max(0, Math.floor(params.softThresholdTokens));
+  const reserveTokens = resolveEffectiveCompactionReserveTokensFloor({
+    contextWindowTokens: contextWindow,
+    reserveTokensFloor: params.reserveTokensFloor,
+    softThresholdTokens: softThreshold,
+  });
   const threshold = Math.max(
     0,
     contextWindow - reserveTokens - softThreshold,

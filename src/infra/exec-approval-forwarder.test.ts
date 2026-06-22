@@ -606,6 +606,29 @@ describe("exec approval forwarder", () => {
     expect(text).toContain("Reply with: /approve req-1 allow-once|allow-always|deny");
   });
 
+  it("forwards only one cron-run approval notice per session even when exec retries", async () => {
+    const { deliver, forwarder } = createForwarder({ cfg: TARGETS_CFG });
+    const cronSessionKey = "agent:scout:cron:scout-weekly-intel:run:run-123";
+    const firstRequest = {
+      ...baseRequest,
+      id: "req-cron-1",
+      request: {
+        ...baseRequest.request,
+        sessionKey: cronSessionKey,
+      },
+    };
+    const secondRequest = {
+      ...firstRequest,
+      id: "req-cron-2",
+    };
+
+    await expect(forwarder.handleRequested(firstRequest)).resolves.toBe(true);
+    await expect(forwarder.handleRequested(secondRequest)).resolves.toBe(true);
+    await flushPendingDelivery();
+
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+
   it("includes command analysis warnings in fallback delivery text", () => {
     const text = buildExecApprovalRequestMessage(
       {

@@ -78,18 +78,23 @@ export function applyFinalEffectiveToolPolicy(
     agentId,
     globalPolicy,
     globalProviderPolicy,
+    globalChannelPolicy,
     agentPolicy,
     agentProviderPolicy,
+    agentChannelPolicy,
     profile,
     providerProfile,
+    channelProfile,
     profileAlsoAllow,
     providerProfileAlsoAllow,
+    channelProfileAlsoAllow,
   } = resolveEffectiveToolPolicy({
     config: params.config,
     sessionKey: params.sessionKey,
     agentId: params.agentId,
     modelProvider: params.modelProvider,
     modelId: params.modelId,
+    messageProvider: params.messageProvider,
   });
 
   const groupPolicy = resolveGroupToolPolicy({
@@ -117,10 +122,15 @@ export function applyFinalEffectiveToolPolicy(
   });
   const profilePolicy = resolveToolProfilePolicy(profile);
   const providerProfilePolicy = resolveToolProfilePolicy(providerProfile);
+  const channelProfilePolicy = resolveToolProfilePolicy(channelProfile);
   const profilePolicyWithAlsoAllow = mergeAlsoAllowPolicy(profilePolicy, profileAlsoAllow);
   const providerProfilePolicyWithAlsoAllow = mergeAlsoAllowPolicy(
     providerProfilePolicy,
     providerProfileAlsoAllow,
+  );
+  const channelProfilePolicyWithAlsoAllow = mergeAlsoAllowPolicy(
+    channelProfilePolicy,
+    channelProfileAlsoAllow,
   );
   const subagentStore = resolveSubagentCapabilityStore(params.sessionKey, {
     cfg: params.config,
@@ -160,10 +170,15 @@ export function applyFinalEffectiveToolPolicy(
       providerProfilePolicy: providerProfilePolicyWithAlsoAllow,
       providerProfile,
       providerProfileUnavailableCoreWarningAllowlist: providerProfilePolicy?.allow,
+      channelProfilePolicy: channelProfilePolicyWithAlsoAllow,
+      channelProfile,
+      channelProfileUnavailableCoreWarningAllowlist: channelProfilePolicy?.allow,
       globalPolicy,
       globalProviderPolicy,
+      globalChannelPolicy,
       agentPolicy,
       agentProviderPolicy,
+      agentChannelPolicy,
       groupPolicy,
       senderPolicy,
       agentId,

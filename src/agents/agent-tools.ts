@@ -558,18 +558,23 @@ export function createOpenClawCodingTools(options?: {
     agentId,
     globalPolicy,
     globalProviderPolicy,
+    globalChannelPolicy,
     agentPolicy,
     agentProviderPolicy,
+    agentChannelPolicy,
     profile,
     providerProfile,
+    channelProfile,
     profileAlsoAllow,
     providerProfileAlsoAllow,
+    channelProfileAlsoAllow,
   } = resolveEffectiveToolPolicy({
     config: options?.config,
     sessionKey: options?.sessionKey,
     agentId: options?.agentId,
     modelProvider: options?.modelProvider,
     modelId: options?.modelId,
+    messageProvider: options?.messageProvider,
   });
   // Prefer the already-resolved sandbox context policy. Recomputing from
   // sessionKey/config can lose the real sandbox agent when callers pass a
@@ -600,6 +605,7 @@ export function createOpenClawCodingTools(options?: {
   });
   const profilePolicy = resolveToolProfilePolicy(profile);
   const providerProfilePolicy = resolveToolProfilePolicy(providerProfile);
+  const channelProfilePolicy = resolveToolProfilePolicy(channelProfile);
 
   const enableHeartbeatTool =
     options?.enableHeartbeatTool === true ||
@@ -647,6 +653,10 @@ export function createOpenClawCodingTools(options?: {
     ...(providerProfileAlsoAllow ?? []),
     ...runtimeProfileAlsoAllow,
   ]);
+  const channelProfilePolicyWithAlsoAllow = mergeAlsoAllowPolicy(channelProfilePolicy, [
+    ...(channelProfileAlsoAllow ?? []),
+    ...runtimeProfileAlsoAllow,
+  ]);
   // Prefer sessionKey for process isolation scope to prevent cross-session process visibility/killing.
   // Fallback to agentId if no sessionKey is available (e.g. legacy or global contexts).
   const scopeKey = resolveProcessToolScopeKey({
@@ -678,9 +688,13 @@ export function createOpenClawCodingTools(options?: {
   const globalPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(globalPolicy);
   const globalProviderPolicyWithToolSearchControls =
     mergeToolSearchControlAllowlist(globalProviderPolicy);
+  const globalChannelPolicyWithToolSearchControls =
+    mergeToolSearchControlAllowlist(globalChannelPolicy);
   const agentPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(agentPolicy);
   const agentProviderPolicyWithToolSearchControls =
     mergeToolSearchControlAllowlist(agentProviderPolicy);
+  const agentChannelPolicyWithToolSearchControls =
+    mergeToolSearchControlAllowlist(agentChannelPolicy);
   const groupPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(groupPolicy);
   const senderPolicyWithToolSearchControls = mergeToolSearchControlAllowlist(senderPolicy);
   const sandboxToolPolicyWithToolSearchControls =
@@ -689,10 +703,13 @@ export function createOpenClawCodingTools(options?: {
   const allowBackground = isToolAllowedByPolicies("process", [
     profilePolicyWithAlsoAllow,
     providerProfilePolicyWithAlsoAllow,
+    channelProfilePolicyWithAlsoAllow,
     globalPolicyWithToolSearchControls,
     globalProviderPolicyWithToolSearchControls,
+    globalChannelPolicyWithToolSearchControls,
     agentPolicyWithToolSearchControls,
     agentProviderPolicyWithToolSearchControls,
+    agentChannelPolicyWithToolSearchControls,
     groupPolicyWithToolSearchControls,
     senderPolicyWithToolSearchControls,
     sandboxToolPolicyWithToolSearchControls,
@@ -1122,10 +1139,15 @@ export function createOpenClawCodingTools(options?: {
         providerProfilePolicy: providerProfilePolicyWithAlsoAllow,
         providerProfile,
         providerProfileUnavailableCoreWarningAllowlist: providerProfilePolicy?.allow,
+        channelProfilePolicy: channelProfilePolicyWithAlsoAllow,
+        channelProfile,
+        channelProfileUnavailableCoreWarningAllowlist: channelProfilePolicy?.allow,
         globalPolicy: globalPolicyWithToolSearchControls,
         globalProviderPolicy: globalProviderPolicyWithToolSearchControls,
+        globalChannelPolicy: globalChannelPolicyWithToolSearchControls,
         agentPolicy: agentPolicyWithToolSearchControls,
         agentProviderPolicy: agentProviderPolicyWithToolSearchControls,
+        agentChannelPolicy: agentChannelPolicyWithToolSearchControls,
         groupPolicy: groupPolicyWithToolSearchControls,
         senderPolicy: senderPolicyWithToolSearchControls,
         agentId,

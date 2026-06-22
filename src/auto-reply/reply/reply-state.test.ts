@@ -22,6 +22,7 @@ import {
 } from "./history.js";
 import {
   hasAlreadyFlushedForCurrentCompaction,
+  resolveEffectiveCompactionReserveTokensFloor,
   resolveMemoryFlushContextWindowTokens,
   shouldRunMemoryFlush,
   shouldRunPreflightCompaction,
@@ -372,6 +373,36 @@ describe("shouldRunMemoryFlush", () => {
         softThresholdTokens: 2_000,
       }),
     ).toBe(false);
+  });
+});
+
+describe("resolveEffectiveCompactionReserveTokensFloor", () => {
+  it("caps reserve floor on 32k local models so bootstrap-heavy sessions do not false-trigger preflight", () => {
+    expect(
+      resolveEffectiveCompactionReserveTokensFloor({
+        contextWindowTokens: 32_768,
+        reserveTokensFloor: 20_000,
+        softThresholdTokens: 4_000,
+      }),
+    ).toBe(12_768);
+    expect(
+      shouldRunPreflightCompaction({
+        entry: { totalTokens: 13_011, totalTokensFresh: true },
+        contextWindowTokens: 32_768,
+        reserveTokensFloor: 20_000,
+        softThresholdTokens: 4_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps large-context reserve floors unchanged", () => {
+    expect(
+      resolveEffectiveCompactionReserveTokensFloor({
+        contextWindowTokens: 200_000,
+        reserveTokensFloor: 20_000,
+        softThresholdTokens: 4_000,
+      }),
+    ).toBe(20_000);
   });
 });
 

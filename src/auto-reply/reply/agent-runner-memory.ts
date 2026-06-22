@@ -51,6 +51,7 @@ import {
 import type { CompactionNoticePhase } from "./compaction-notice.js";
 import {
   hasAlreadyFlushedForCurrentCompaction,
+  resolveEffectiveCompactionReserveTokensFloor,
   resolveMaxActiveTranscriptBytes,
   resolveMemoryFlushContextWindowTokens,
   resolveResponsesServerCompactionThreshold,
@@ -807,8 +808,13 @@ export async function runPreflightCompactionIfNeeded(params: {
     provider: params.followupRun.run.provider,
     modelId: params.followupRun.run.model ?? params.defaultModel,
   });
+  const effectiveReserveTokensFloor = resolveEffectiveCompactionReserveTokensFloor({
+    contextWindowTokens,
+    reserveTokensFloor,
+    softThresholdTokens,
+  });
   const threshold = Math.max(
-    contextWindowTokens - reserveTokensFloor - softThresholdTokens,
+    contextWindowTokens - effectiveReserveTokensFloor - softThresholdTokens,
     serverCompactionThreshold ?? 0,
   );
   logVerbose(
@@ -1047,8 +1053,13 @@ export async function runMemoryFlushIfNeeded(params: {
   const hasFreshPersistedPromptTokens =
     typeof persistedPromptTokens === "number" && entry?.totalTokensFresh === true;
 
+  const effectiveFlushReserveFloor = resolveEffectiveCompactionReserveTokensFloor({
+    contextWindowTokens,
+    reserveTokensFloor: memoryFlushPlan.reserveTokensFloor,
+    softThresholdTokens: memoryFlushPlan.softThresholdTokens,
+  });
   const flushThreshold =
-    contextWindowTokens - memoryFlushPlan.reserveTokensFloor - memoryFlushPlan.softThresholdTokens;
+    contextWindowTokens - effectiveFlushReserveFloor - memoryFlushPlan.softThresholdTokens;
 
   // When totals are stale/unknown, derive prompt + last output from transcript so memory
   // flush can still be evaluated against projected next-input size.

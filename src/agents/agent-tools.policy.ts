@@ -400,6 +400,47 @@ export function resolveProviderToolPolicy(params: {
   return undefined;
 }
 
+function buildChannelToolPolicyLookup(
+  entries: Array<[string, ToolPolicyConfig]>,
+): Map<string, ToolPolicyConfig> {
+  const lookup = new Map<string, ToolPolicyConfig>();
+  for (const [key, value] of entries) {
+    const normalized = normalizeMessageChannel(key) ?? normalizeLowercaseStringOrEmpty(key);
+    if (!normalized) {
+      continue;
+    }
+    lookup.set(normalized, value);
+  }
+  return lookup;
+}
+
+/** Resolve inbound-channel tool policy from normalized provider ids (imessage, telegram, ...). */
+export function resolveChannelToolPolicy(params: {
+  byChannel?: Record<string, ToolPolicyConfig>;
+  messageProvider?: string;
+}): ToolPolicyConfig | undefined {
+  const channel = params.messageProvider?.trim();
+  if (!channel || !params.byChannel) {
+    return undefined;
+  }
+  const entries = Object.entries(params.byChannel);
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const lookup = buildChannelToolPolicyLookup(entries);
+  const candidates = [
+    normalizeMessageChannel(channel),
+    normalizeLowercaseStringOrEmpty(channel),
+  ].filter((value): value is string => Boolean(value));
+  for (const key of candidates) {
+    const match = lookup.get(key);
+    if (match) {
+      return match;
+    }
+  }
+  return undefined;
+}
+
 function resolveExplicitProfileAlsoAllow(tools?: OpenClawConfig["tools"]): string[] | undefined {
   return Array.isArray(tools?.alsoAllow) ? tools.alsoAllow : undefined;
 }
@@ -453,6 +494,7 @@ export function resolveEffectiveToolPolicy(params: {
   agentId?: string;
   modelProvider?: string;
   modelId?: string;
+  messageProvider?: string;
 }) {
   const explicitAgentId =
     typeof params.agentId === "string" && params.agentId.trim()
@@ -477,6 +519,14 @@ export function resolveEffectiveToolPolicy(params: {
     byProvider: agentTools?.byProvider,
     modelProvider: params.modelProvider,
     modelId: params.modelId,
+  });
+  const channelPolicy = resolveChannelToolPolicy({
+    byChannel: globalTools?.byChannel,
+    messageProvider: params.messageProvider,
+  });
+  const agentChannelPolicy = resolveChannelToolPolicy({
+    byChannel: agentTools?.byChannel,
+    messageProvider: params.messageProvider,
   });
   const explicitProfileAlsoAllow =
     resolveExplicitProfileAlsoAllow(agentTools) ?? resolveExplicitProfileAlsoAllow(globalTools);
@@ -521,16 +571,24 @@ export function resolveEffectiveToolPolicy(params: {
     agentId,
     globalPolicy: pickSandboxToolPolicy(globalTools),
     globalProviderPolicy: pickSandboxToolPolicy(providerPolicy),
+    globalChannelPolicy: pickSandboxToolPolicy(channelPolicy),
     agentPolicy: pickSandboxToolPolicy(agentTools),
     agentProviderPolicy: pickSandboxToolPolicy(agentProviderPolicy),
+    agentChannelPolicy: pickSandboxToolPolicy(agentChannelPolicy),
     profile,
     providerProfile: agentProviderPolicy?.profile ?? providerPolicy?.profile,
+    channelProfile: agentChannelPolicy?.profile ?? channelPolicy?.profile,
     // alsoAllow is applied at the profile stage to avoid early filtering.
     profileAlsoAllow,
     providerProfileAlsoAllow: Array.isArray(agentProviderPolicy?.alsoAllow)
       ? agentProviderPolicy?.alsoAllow
       : Array.isArray(providerPolicy?.alsoAllow)
         ? providerPolicy?.alsoAllow
+        : undefined,
+    channelProfileAlsoAllow: Array.isArray(agentChannelPolicy?.alsoAllow)
+      ? agentChannelPolicy?.alsoAllow
+      : Array.isArray(channelPolicy?.alsoAllow)
+        ? channelPolicy?.alsoAllow
         : undefined,
   };
 }

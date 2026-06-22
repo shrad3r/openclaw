@@ -202,6 +202,14 @@ function buildSyntheticApprovalRequest(routeRequest: ApprovalRouteRequest): Exec
   };
 }
 
+const CRON_RUN_SESSION_KEY_RE = /:cron:[^:]+:run:/;
+
+/** Gateway cron isolated runs use agent:<id>:cron:<jobId>:run:<runId> session keys. */
+export function isCronRunSessionKey(sessionKey: string | null | undefined): boolean {
+  const normalized = normalizeOptionalString(sessionKey);
+  return normalized ? CRON_RUN_SESSION_KEY_RE.test(normalized) : false;
+}
+
 function shouldSkipForwardingFallback(params: {
   approvalKind: "exec" | "plugin";
   target: ExecApprovalForwardTarget;
@@ -543,6 +551,16 @@ function createApprovalHandlers<
   resolveSessionTarget: ResolveSessionTargetFn;
 }) {
   const pending = new Map<string, PendingApproval<TRouteRequest>>();
+  // Cron runs that miss allowlist can retry exec in a tight loop; cap outbound
+  // approval notices to one forward per cron run session so Telegram does not flood.
+  const cronForwardNotifiedSessionKeys = new Set<string>();
+
+  const releaseCronForwardNotify = (sessionKey: string | null | undefined) => {
+    const normalized = normalizeOptionalString(sessionKey);
+    if (normalized) {
+      cronForwardNotifiedSessionKeys.delete(normalized);
+    }
+  };
 
   const handleRequested = async (request: TRequest): Promise<boolean> => {
     const cfg = params.getConfig();
@@ -571,6 +589,17 @@ function createApprovalHandlers<
       return false;
     }
 
+    const cronSessionKey = normalizeOptionalString(routeRequest.sessionKey);
+    const suppressCronForward =
+      cronSessionKey &&
+      isCronRunSessionKey(cronSessionKey) &&
+      cronForwardNotifiedSessionKeys.has(cronSessionKey);
+    if (suppressCronForward) {
+      log.info(`exec approvals: suppressing duplicate cron approval forward for ${cronSessionKey}`);
+    } else if (cronSessionKey && isCronRunSessionKey(cronSessionKey)) {
+      cronForwardNotifiedSessionKeys.add(cronSessionKey);
+    }
+
     const expiresInMs = Math.max(0, params.strategy.getExpiresAtMs(request) - params.nowMs());
     const timeoutId = setTimeout(() => {
       void (async () => {
@@ -579,6 +608,7 @@ function createApprovalHandlers<
           return;
         }
         pending.delete(requestId);
+        releaseCronForwardNotify(entry.routeRequest.sessionKey);
         await deliverToTargets({
           cfg,
           targets: entry.targets,
@@ -602,6 +632,10 @@ function createApprovalHandlers<
 
     if (pending.get(requestId) !== pendingEntry) {
       return false;
+    }
+
+    if (suppressCronForward) {
+      return true;
     }
 
     void deliverToTargets({
@@ -648,6 +682,7 @@ function createApprovalHandlers<
     }
     if (entry) {
       pending.delete(resolvedId);
+      releaseCronForwardNotify(entry.routeRequest.sessionKey);
     }
 
     const cfg = params.getConfig();
@@ -704,6 +739,7 @@ function createApprovalHandlers<
       }
     }
     pending.clear();
+    cronForwardNotifiedSessionKeys.clear();
   };
 
   return { handleRequested, handleResolved, stop };

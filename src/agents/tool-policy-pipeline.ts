@@ -52,10 +52,15 @@ export function buildDefaultToolPolicyPipelineSteps(params: {
   providerProfilePolicy?: ToolPolicyLike;
   providerProfile?: string;
   providerProfileUnavailableCoreWarningAllowlist?: string[];
+  channelProfilePolicy?: ToolPolicyLike;
+  channelProfile?: string;
+  channelProfileUnavailableCoreWarningAllowlist?: string[];
   globalPolicy?: ToolPolicyLike;
   globalProviderPolicy?: ToolPolicyLike;
+  globalChannelPolicy?: ToolPolicyLike;
   agentPolicy?: ToolPolicyLike;
   agentProviderPolicy?: ToolPolicyLike;
+  agentChannelPolicy?: ToolPolicyLike;
   groupPolicy?: ToolPolicyLike;
   senderPolicy?: ToolPolicyLike;
   agentId?: string;
@@ -64,6 +69,7 @@ export function buildDefaultToolPolicyPipelineSteps(params: {
   const agentId = params.agentId?.trim();
   const profile = params.profile?.trim();
   const providerProfile = params.providerProfile?.trim();
+  const channelProfile = params.channelProfile?.trim();
   const unavailableCoreToolReason = params.unavailableCoreToolReason?.trim();
   return [
     {
@@ -84,6 +90,16 @@ export function buildDefaultToolPolicyPipelineSteps(params: {
       unavailableCoreToolReason,
     },
     {
+      policy: params.channelProfilePolicy,
+      label: channelProfile
+        ? `tools.byChannel.profile (${channelProfile})`
+        : "tools.byChannel.profile",
+      stripPluginOnlyAllowlist: true,
+      suppressUnavailableCoreToolWarningAllowlist:
+        params.channelProfileUnavailableCoreWarningAllowlist,
+      unavailableCoreToolReason,
+    },
+    {
       policy: params.globalPolicy,
       label: "tools.allow",
       stripPluginOnlyAllowlist: true,
@@ -96,6 +112,12 @@ export function buildDefaultToolPolicyPipelineSteps(params: {
       unavailableCoreToolReason,
     },
     {
+      policy: params.globalChannelPolicy,
+      label: "tools.byChannel.allow",
+      stripPluginOnlyAllowlist: true,
+      unavailableCoreToolReason,
+    },
+    {
       policy: params.agentPolicy,
       label: agentId ? `agents.${agentId}.tools.allow` : "agent tools.allow",
       stripPluginOnlyAllowlist: true,
@@ -104,6 +126,12 @@ export function buildDefaultToolPolicyPipelineSteps(params: {
     {
       policy: params.agentProviderPolicy,
       label: agentId ? `agents.${agentId}.tools.byProvider.allow` : "agent tools.byProvider.allow",
+      stripPluginOnlyAllowlist: true,
+      unavailableCoreToolReason,
+    },
+    {
+      policy: params.agentChannelPolicy,
+      label: agentId ? `agents.${agentId}.tools.byChannel.allow` : "agent tools.byChannel.allow",
       stripPluginOnlyAllowlist: true,
       unavailableCoreToolReason,
     },

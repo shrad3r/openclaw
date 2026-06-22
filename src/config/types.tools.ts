@@ -404,6 +404,8 @@ export type AgentToolsConfig = {
   deny?: string[];
   /** Optional tool policy overrides keyed by provider id or "provider/model". */
   byProvider?: Record<string, ToolPolicyConfig>;
+  /** Optional tool policy overrides keyed by inbound channel (e.g. imessage, telegram, webchat). */
+  byChannel?: Record<string, ToolPolicyConfig>;
   /** Per-sender tool policy overrides keyed by sender identity. */
   toolsBySender?: GroupToolPolicyBySenderConfig;
   /** Per-agent code mode override; merges over the top-level tools.codeMode config. */
@@ -602,6 +604,8 @@ export type ToolsConfig = {
   deny?: string[];
   /** Optional tool policy overrides keyed by provider id or "provider/model". */
   byProvider?: Record<string, ToolPolicyConfig>;
+  /** Optional tool policy overrides keyed by inbound channel (e.g. imessage, telegram, webchat). */
+  byChannel?: Record<string, ToolPolicyConfig>;
   /** Per-sender tool policy overrides keyed by sender identity. */
   toolsBySender?: GroupToolPolicyBySenderConfig;
   web?: {

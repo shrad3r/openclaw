@@ -529,6 +529,22 @@ const ToolPolicyWithProfileSchema = z
     );
   });
 
+const ToolPolicyByChannelSchema = z
+  .object({
+    allow: z.array(z.string()).optional(),
+    alsoAllow: z.array(z.string()).optional(),
+    deny: z.array(z.string()).optional(),
+    profile: ToolProfileSchema,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    addAllowAlsoAllowConflictIssue(
+      value,
+      ctx,
+      "tools.byChannel policy cannot set both allow and alsoAllow in the same scope (merge alsoAllow into allow, or remove allow and use profile + alsoAllow)",
+    );
+  });
+
 // Provider docking: allowlists keyed by provider id (no schema updates when adding providers).
 export const ElevatedAllowFromSchema = z
   .record(z.string(), z.array(z.union([z.string(), z.number()])))
@@ -761,6 +777,7 @@ const CommonToolPolicyFields = {
   alsoAllow: z.array(z.string()).optional(),
   deny: z.array(z.string()).optional(),
   byProvider: z.record(z.string(), ToolPolicyWithProfileSchema).optional(),
+  byChannel: z.record(z.string(), ToolPolicyByChannelSchema).optional(),
   toolsBySender: ToolPolicyBySenderSchema,
 };
 

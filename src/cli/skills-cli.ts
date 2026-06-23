@@ -88,11 +88,8 @@ function formatSkillWarning(message: string): string {
   return message.includes("╭─") ? message : theme.warn(message);
 }
 
-function isClawHubSkillTrustCliFailure(code: string | undefined): boolean {
-  return (
-    code === CLAWHUB_TRUST_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED ||
-    code === CLAWHUB_TRUST_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED
-  );
+function isClawHubSkillBlockedCliFailure(code: string | undefined): boolean {
+  return code === CLAWHUB_TRUST_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED;
 }
 
 type ResolveSkillsWorkspaceOptions = {
@@ -436,7 +433,7 @@ export function registerSkillsCli(program: Command) {
             },
           });
           if (!result.ok) {
-            if (!isClawHubSkillTrustCliFailure(result.code)) {
+            if (!isClawHubSkillBlockedCliFailure(result.code)) {
               defaultRuntime.error(result.error);
             }
             defaultRuntime.exit(1);
@@ -517,7 +514,7 @@ export function registerSkillsCli(program: Command) {
           for (const result of results) {
             if (!result.ok) {
               failed = true;
-              if (!isClawHubSkillTrustCliFailure(result.code)) {
+              if (!isClawHubSkillBlockedCliFailure(result.code)) {
                 defaultRuntime.error(result.error);
               }
               continue;

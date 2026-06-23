@@ -1337,6 +1337,24 @@ describe("plugins cli install", () => {
     expect(record.clawhubTrustAcknowledgedAt).toBe("2026-05-14T18:00:03.000Z");
   });
 
+  it("prints acknowledgement guidance for unacknowledged ClawHub plugin installs", async () => {
+    loadConfig.mockReturnValue(createEmptyPluginConfig());
+    parseClawHubPluginSpec.mockReturnValue({ name: "demo" });
+    installPluginFromClawHub.mockResolvedValue({
+      ok: false,
+      code: "clawhub_risk_acknowledgement_required",
+      error:
+        "Install cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+      warning: "WARNING - ClawHub found security risks in this release",
+    });
+
+    await expect(runPluginsCommand(["plugins", "install", "clawhub:demo"])).rejects.toThrow(
+      "__exit__:1",
+    );
+
+    expect(runtimeErrors.at(-1)).toContain("--acknowledge-clawhub-risk");
+  });
+
   it("passes the active profile extensions dir to ClawHub installs", async () => {
     const extensionsDir = useProfileExtensionsDir();
     const cfg = createEmptyPluginConfig();

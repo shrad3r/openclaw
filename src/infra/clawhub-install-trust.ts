@@ -1,6 +1,6 @@
 // Shared ClawHub exact-release trust gate for plugin and skill installs.
 import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
-import { visibleWidth } from "../../packages/terminal-core/src/ansi.js";
+import { stripAnsi, visibleWidth } from "../../packages/terminal-core/src/ansi.js";
 import { sanitizeTerminalText } from "../../packages/terminal-core/src/safe-text.js";
 import { formatTerminalLink } from "../../packages/terminal-core/src/terminal-link.js";
 import { theme } from "../../packages/terminal-core/src/theme.js";
@@ -818,7 +818,7 @@ export async function ensureClawHubPackageTrustAcknowledged(params: {
     return acceptTrust();
   }
 
-  const warning = formatClawHubTrustWarning({
+  const terminalWarning = formatClawHubTrustWarning({
     baseUrl: params.baseUrl,
     subject: params.subject,
     version: params.version,
@@ -827,7 +827,18 @@ export async function ensureClawHubPackageTrustAcknowledged(params: {
     mode: params.mode,
     terminalLinks: params.logger?.terminalLinks,
   });
-  params.logger?.warn?.(warning);
+  const warning = stripAnsi(
+    formatClawHubTrustWarning({
+      baseUrl: params.baseUrl,
+      subject: params.subject,
+      version: params.version,
+      trust,
+      assessment,
+      mode: params.mode,
+      terminalLinks: false,
+    }),
+  );
+  params.logger?.warn?.(terminalWarning);
   if (assessment.disposition === "review-recommended") {
     return acceptTrust({ warning });
   }

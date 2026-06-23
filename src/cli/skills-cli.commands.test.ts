@@ -660,6 +660,22 @@ describe("skills cli commands", () => {
     );
   });
 
+  it("prints acknowledgement guidance for unacknowledged ClawHub skill installs", async () => {
+    installSkillFromClawHubMock.mockResolvedValue({
+      ok: false,
+      code: "clawhub_risk_acknowledgement_required",
+      error:
+        "Install cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+      warning: "WARNING - ClawHub found security risks in this release",
+    });
+
+    await expect(runCommand(["skills", "install", "calendar"])).rejects.toThrow("__exit__:1");
+
+    expect(runtimeErrors).toContain(
+      "Install cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+    );
+  });
+
   it("rejects using --global and --agent together for installs", async () => {
     await expect(
       runCommand(["skills", "install", "calendar", "--global", "--agent", "main"]),
@@ -751,6 +767,25 @@ describe("skills cli commands", () => {
         workspaceDir: "/tmp/workspace",
         acknowledgeClawHubRisk: true,
       }),
+    );
+  });
+
+  it("prints acknowledgement guidance for unacknowledged ClawHub skill updates", async () => {
+    readTrackedClawHubSkillSlugsMock.mockResolvedValue(["calendar"]);
+    updateSkillsFromClawHubMock.mockResolvedValue([
+      {
+        ok: false,
+        code: "clawhub_risk_acknowledgement_required",
+        error:
+          "Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+        warning: "WARNING - ClawHub found security risks in this release",
+      },
+    ]);
+
+    await expect(runCommand(["skills", "update", "calendar"])).rejects.toThrow("__exit__:1");
+
+    expect(runtimeErrors).toContain(
+      "Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
     );
   });
 

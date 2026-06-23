@@ -167,6 +167,7 @@ type InstallSuccess = {
   packageName?: string;
   pluginId?: string;
   version?: string;
+  warning?: string;
 };
 
 type InstallFailure = {
@@ -390,7 +391,7 @@ describe("installPluginFromClawHub", () => {
         },
       },
     });
-    const logger = createLoggerSpies();
+    const logger = { ...createLoggerSpies(), terminalLinks: true };
 
     const result = await installPluginFromClawHub({
       spec: "clawhub:demo",
@@ -440,7 +441,7 @@ describe("installPluginFromClawHub", () => {
         stale: false,
       },
     });
-    const logger = createLoggerSpies();
+    const logger = { ...createLoggerSpies(), terminalLinks: true };
 
     const result = await installPluginFromClawHub({
       spec: "clawhub:demo",
@@ -452,12 +453,16 @@ describe("installPluginFromClawHub", () => {
     const failure = expectInstallFailure(result);
     expect(failure.code).toBe(CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED);
     expect(failure.error).toBe("ClawHub blocked this release; install was not started.");
+    expect(failure.warning).toContain("ClawHub flagged this release as malicious");
+    expect(failure.warning).not.toContain("\u001b");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("BLOCKED"));
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("ClawHub flagged this release as malicious"),
     );
     const warning = logger.warn.mock.calls[0]?.[0] ?? "";
-    expect(warning).toContain("• Security scan   malicious");
+    expect(warning).toContain("\u001b]8");
+    expect(warning).toContain("• Security scan");
+    expect(warning).toContain("malicious");
     expect(warning).toContain("• Moderation      quarantined");
     expect(warning).toContain("• Finding         manual_moderation");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("manual_moderation"));
@@ -813,6 +818,7 @@ describe("installPluginFromClawHub", () => {
 
   it("continues after a risky ClawHub release is acknowledged", async () => {
     const onClawHubRisk = vi.fn(async () => true);
+    const logger = { ...createLoggerSpies(), terminalLinks: true };
     fetchClawHubPackageSecurityMock.mockResolvedValueOnce({
       package: {
         name: "demo",
@@ -835,6 +841,7 @@ describe("installPluginFromClawHub", () => {
     const result = await installPluginFromClawHub({
       spec: "clawhub:demo",
       baseUrl: "https://clawhub.ai",
+      logger,
       onClawHubRisk,
     });
 
@@ -857,6 +864,8 @@ describe("installPluginFromClawHub", () => {
         warning: expect.stringContaining("payload strings"),
       }),
     );
+    expect(onClawHubRisk.mock.calls[0]?.[0].warning).not.toContain("\u001b");
+    expect(logger.warn.mock.calls.map(([message]) => message).join("\n")).toContain("\u001b]8");
     expect(downloadClawHubPackageArchiveMock).toHaveBeenCalled();
   });
 

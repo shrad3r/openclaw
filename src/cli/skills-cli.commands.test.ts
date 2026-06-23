@@ -676,6 +676,21 @@ describe("skills cli commands", () => {
     );
   });
 
+  it("prints blocked ClawHub skill install failures when no trust warning was emitted", async () => {
+    installSkillFromClawHubMock.mockResolvedValue({
+      ok: false,
+      code: "clawhub_download_blocked",
+      error:
+        'ClawHub blocked artifact download for "calendar@1.2.3"; install was not started. ClawHub /api/v1/skills/calendar/versions/1.2.3/download failed (403): blocked.',
+    });
+
+    await expect(runCommand(["skills", "install", "calendar"])).rejects.toThrow("__exit__:1");
+
+    expect(runtimeErrors).toContain(
+      'ClawHub blocked artifact download for "calendar@1.2.3"; install was not started. ClawHub /api/v1/skills/calendar/versions/1.2.3/download failed (403): blocked.',
+    );
+  });
+
   it("rejects using --global and --agent together for installs", async () => {
     await expect(
       runCommand(["skills", "install", "calendar", "--global", "--agent", "main"]),
@@ -786,6 +801,24 @@ describe("skills cli commands", () => {
 
     expect(runtimeErrors).toContain(
       "Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+    );
+  });
+
+  it("prints blocked ClawHub skill update failures when no trust warning was emitted", async () => {
+    readTrackedClawHubSkillSlugsMock.mockResolvedValue(["calendar"]);
+    updateSkillsFromClawHubMock.mockResolvedValue([
+      {
+        ok: false,
+        code: "clawhub_download_blocked",
+        error:
+          'ClawHub blocked artifact download for "calendar@1.2.4"; update was not started. ClawHub /api/v1/skills/calendar/versions/1.2.4/download failed (403): blocked.',
+      },
+    ]);
+
+    await expect(runCommand(["skills", "update", "calendar"])).rejects.toThrow("__exit__:1");
+
+    expect(runtimeErrors).toContain(
+      'ClawHub blocked artifact download for "calendar@1.2.4"; update was not started. ClawHub /api/v1/skills/calendar/versions/1.2.4/download failed (403): blocked.',
     );
   });
 

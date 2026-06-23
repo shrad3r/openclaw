@@ -1355,6 +1355,23 @@ describe("plugins cli install", () => {
     expect(runtimeErrors.at(-1)).toContain("--acknowledge-clawhub-risk");
   });
 
+  it("prints blocked ClawHub download failures when no trust warning was emitted", async () => {
+    loadConfig.mockReturnValue(createEmptyPluginConfig());
+    parseClawHubPluginSpec.mockReturnValue({ name: "demo" });
+    installPluginFromClawHub.mockResolvedValue({
+      ok: false,
+      code: "clawhub_download_blocked",
+      error:
+        'ClawHub blocked artifact download for "demo@1.2.3"; install was not started. ClawHub /api/v1/packages/demo/versions/1.2.3/artifact/download failed (403): blocked.',
+    });
+
+    await expect(runPluginsCommand(["plugins", "install", "clawhub:demo"])).rejects.toThrow(
+      "__exit__:1",
+    );
+
+    expect(runtimeErrors.at(-1)).toContain("ClawHub blocked artifact download");
+  });
+
   it("passes the active profile extensions dir to ClawHub installs", async () => {
     const extensionsDir = useProfileExtensionsDir();
     const cfg = createEmptyPluginConfig();

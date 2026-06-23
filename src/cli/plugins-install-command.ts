@@ -81,8 +81,12 @@ type ConfigSnapshotForInstallExecution = ConfigSnapshotForInstallPersist & {
   pluginMutation: ConfigMutationPreflight;
 };
 
-function isClawHubBlockedCliFailure(code: string | undefined): boolean {
-  return code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED;
+function isClawHubBlockedCliFailure(result: { code?: string; warning?: string }): boolean {
+  return (
+    result.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED &&
+    typeof result.warning === "string" &&
+    result.warning.trim().length > 0
+  );
 }
 
 function resolveInstallMode(force?: boolean): "install" | "update" {
@@ -1000,7 +1004,7 @@ export async function runPluginInstallCommand(params: {
       logger: createPluginInstallLogger(runtime),
     });
     if (!result.ok) {
-      if (!isClawHubBlockedCliFailure(result.code)) {
+      if (!isClawHubBlockedCliFailure(result)) {
         runtime.error(result.error);
       }
       return runtime.exit(1);
@@ -1319,7 +1323,7 @@ export async function runPluginInstallCommand(params: {
       logger: createPluginInstallLogger(runtime),
     });
     if (!result.ok) {
-      if (!isClawHubBlockedCliFailure(result.code)) {
+      if (!isClawHubBlockedCliFailure(result)) {
         runtime.error(result.error);
       }
       return runtime.exit(1);

@@ -1,7 +1,10 @@
 // Resolves ClawHub plugin catalog entries and install metadata.
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
-import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
+import {
+  normalizeLowercaseStringOrEmpty,
+  normalizeOptionalString,
+} from "@openclaw/normalization-core/string-coerce";
 import JSZip from "jszip";
 import { visibleWidth } from "../../packages/terminal-core/src/ansi.js";
 import { sanitizeTerminalText } from "../../packages/terminal-core/src/safe-text.js";
@@ -419,6 +422,35 @@ function formatClawHubClawPackDownloadError(params: {
     return message;
   }
   return `ClawHub artifact download for "${params.packageName}@${params.version}" is not available yet (${message}). Use "npm:${params.packageName}@${params.version}" for launch installs while ClawHub artifact routing is being rolled out.`;
+}
+
+function isClawHubArtifactDownloadPolicyBlock(error: unknown): boolean {
+  if (!(error instanceof ClawHubRequestError)) {
+    return false;
+  }
+  if (error.status === 401 || error.status === 403) {
+    return true;
+  }
+  const body = normalizeLowercaseStringOrEmpty(error.responseBody);
+  return (
+    body.includes("blocked from download") ||
+    body.includes("download disabled") ||
+    body.includes("disabled download") ||
+    body.includes("cannot be downloaded") ||
+    body.includes("flagged as malicious") ||
+    body.includes("malicious") ||
+    body.includes("quarantined") ||
+    body.includes("quarantine") ||
+    body.includes("revoked")
+  );
+}
+
+function formatClawHubArtifactDownloadPolicyBlock(params: {
+  error: unknown;
+  packageName: string;
+  version: string;
+}): string {
+  return `ClawHub blocked artifact download for "${params.packageName}@${params.version}"; install was not started. ${formatErrorMessage(params.error)}`;
 }
 
 function formatClawHubMissingArtifactMetadataError(params: {
@@ -1194,6 +1226,18 @@ export async function installPluginFromClawHub(
       timeoutMs: params.timeoutMs,
     });
   } catch (error) {
+    if (isClawHubArtifactDownloadPolicyBlock(error)) {
+      return buildClawHubInstallFailure(
+        formatClawHubArtifactDownloadPolicyBlock({
+          error,
+          packageName: canonicalPackageName,
+          version: versionState.version,
+        }),
+        CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED,
+        undefined,
+        versionState.version,
+      );
+    }
     // Fix-me(clawhub): remove this npm hint once ClawHub ClawPack artifact
     // routing is live for official package installs.
     return buildClawHubInstallFailure(

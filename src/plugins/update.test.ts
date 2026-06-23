@@ -3448,7 +3448,7 @@ describe("updateNpmInstalledPlugins", () => {
     );
   });
 
-  it("falls back to npm for trusted official ClawHub artifact blocks", async () => {
+  it("does not fall back to npm for blocked official ClawHub artifact downloads", async () => {
     const warnMessages: string[] = [];
     const installPath = createInstalledPackageDir({
       name: "@openclaw/discord",
@@ -3456,22 +3456,11 @@ describe("updateNpmInstalledPlugins", () => {
     });
     installPluginFromClawHubMock.mockResolvedValueOnce({
       ok: false,
-      code: "artifact_unavailable",
+      code: "clawhub_download_blocked",
       error:
-        'ClawHub artifact download for "@openclaw/discord@2026.5.16-beta.5" is not available yet (ClawHub /api/v1/packages/%40openclaw%2Fdiscord/versions/2026.5.16-beta.5/artifact/download failed (403): Blocked: this package release has been flagged as malicious and cannot be downloaded.). Use "npm:@openclaw/discord@2026.5.16-beta.5" for launch installs while ClawHub artifact routing is being rolled out.',
+        'ClawHub blocked artifact download for "@openclaw/discord@2026.5.16-beta.5"; install was not started. ClawHub /api/v1/packages/%40openclaw%2Fdiscord/versions/2026.5.16-beta.5/artifact/download failed (403): Blocked: this package release has been flagged as malicious and cannot be downloaded.',
+      version: "2026.5.16-beta.5",
     });
-    installPluginFromNpmSpecMock.mockResolvedValueOnce(
-      createSuccessfulNpmUpdateResult({
-        pluginId: "discord",
-        targetDir: "/tmp/openclaw-plugins/discord",
-        version: "2026.5.16-beta.5",
-        npmResolution: {
-          name: "@openclaw/discord",
-          version: "2026.5.16-beta.5",
-          resolvedSpec: "@openclaw/discord@2026.5.16-beta.5",
-        },
-      }),
-    );
 
     const result = await updateNpmInstalledPlugins({
       config: createClawHubInstallConfig({
@@ -3490,32 +3479,25 @@ describe("updateNpmInstalledPlugins", () => {
     });
 
     expect(clawHubInstallCall()?.spec).toBe("clawhub:@openclaw/discord@beta");
-    expect(npmInstallCall()?.spec).toBe("@openclaw/discord@beta");
-    expect(npmInstallCall()?.expectedPluginId).toBe("discord");
-    expect(npmInstallCall()?.trustedSourceLinkedOfficialInstall).toBe(true);
+    expect(installPluginFromNpmSpecMock).not.toHaveBeenCalled();
     expect(result.config.plugins?.entries?.discord?.enabled).toBeUndefined();
     expectRecordFields(result.config.plugins?.installs?.discord, {
-      source: "npm",
-      spec: "@openclaw/discord@2026.5.16-beta.5",
-      installPath: "/tmp/openclaw-plugins/discord",
-      version: "2026.5.16-beta.5",
+      source: "clawhub",
+      spec: "clawhub:@openclaw/discord",
+      installPath,
+      clawhubPackage: "@openclaw/discord",
     });
-    expect(result.config.plugins?.installs?.discord?.clawhubPackage).toBeUndefined();
-    expect(result.config.plugins?.installs?.discord?.clawhubUrl).toBeUndefined();
-    expect(result.config.plugins?.installs?.discord?.artifactKind).toBeUndefined();
     expect(result.outcomes).toEqual([
       {
         pluginId: "discord",
-        status: "updated",
+        status: "skipped",
+        code: "clawhub_download_blocked",
         currentVersion: "2026.5.12",
-        nextVersion: "2026.5.16-beta.5",
         message:
-          "Updated discord: 2026.5.12 -> 2026.5.16-beta.5. (warning: official ClawHub artifact fallback used @openclaw/discord@beta).",
+          'Skipped discord ClawHub update: ClawHub blocked artifact download for "@openclaw/discord@2026.5.16-beta.5"; install was not started. ClawHub /api/v1/packages/%40openclaw%2Fdiscord/versions/2026.5.16-beta.5/artifact/download failed (403): Blocked: this package release has been flagged as malicious and cannot be downloaded. Existing installed plugin left unchanged.',
       },
     ]);
-    expect(warnMessages).toEqual([
-      'Plugin "discord" could not download official ClawHub artifact for clawhub:@openclaw/discord@beta; using npm @openclaw/discord@beta instead. Core update can still complete.',
-    ]);
+    expect(warnMessages).toStrictEqual([]);
   });
 
   it("uses the default npm spec when beta ClawHub falls back before an artifact block", async () => {

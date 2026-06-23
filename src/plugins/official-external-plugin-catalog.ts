@@ -1013,6 +1013,25 @@ export function resolveOfficialExternalPluginInstall(
   };
 }
 
+export function resolveOfficialExternalPluginCatalogProfileConfigFromConfig(config?: {
+  marketplaces?: OfficialExternalPluginCatalogProfileConfig;
+}): OfficialExternalPluginCatalogProfileConfig | undefined {
+  return config?.marketplaces;
+}
+
+export async function loadConfiguredHostedOfficialExternalPluginCatalogEntries(
+  config: { marketplaces?: OfficialExternalPluginCatalogProfileConfig } | undefined,
+  params?: Omit<
+    Parameters<typeof loadHostedOfficialExternalPluginCatalogEntries>[0],
+    "catalogConfig"
+  >,
+): Promise<HostedOfficialExternalPluginCatalogLoadResult> {
+  return await loadHostedOfficialExternalPluginCatalogEntries({
+    ...params,
+    catalogConfig: resolveOfficialExternalPluginCatalogProfileConfigFromConfig(config),
+  });
+}
+
 export function listOfficialExternalPluginCatalogEntries(): OfficialExternalPluginCatalogEntry[] {
   return dedupeOfficialExternalPluginCatalogEntries(bundledOfficialExternalPluginCatalogEntries());
 }

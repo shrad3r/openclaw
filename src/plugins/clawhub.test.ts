@@ -56,6 +56,7 @@ vi.mock("../infra/archive.js", async () => {
 
 const { ClawHubRequestError } = await import("../infra/clawhub.js");
 type ClawHubResolvedArtifact = import("../infra/clawhub.js").ClawHubResolvedArtifact;
+type ClawHubRiskAcknowledgementRequest = import("./clawhub.js").ClawHubRiskAcknowledgementRequest;
 const { CLAWHUB_INSTALL_ERROR_CODE, formatClawHubSpecifier, installPluginFromClawHub } =
   await import("./clawhub.js");
 
@@ -817,7 +818,7 @@ describe("installPluginFromClawHub", () => {
   });
 
   it("continues after a risky ClawHub release is acknowledged", async () => {
-    const onClawHubRisk = vi.fn(async () => true);
+    const onClawHubRisk = vi.fn(async (_request: ClawHubRiskAcknowledgementRequest) => true);
     const logger = { ...createLoggerSpies(), terminalLinks: true };
     fetchClawHubPackageSecurityMock.mockResolvedValueOnce({
       package: {

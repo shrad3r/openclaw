@@ -1094,6 +1094,8 @@ describe("skills-clawhub", () => {
       slug: "aiq-deploy",
       baseUrl: undefined,
     });
+    // GitHub-backed skills are approved by the install resolver before it
+    // returns this pinned commit; they do not have a ClawHub release version.
     expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
     expect(downloadClawHubGitHubSkillArchiveMock).toHaveBeenCalledWith({
       repo: "NVIDIA/skills",
@@ -1149,6 +1151,7 @@ describe("skills-clawhub", () => {
       baseUrl: undefined,
       forceInstall: true,
     });
+    // forceInstall is a resolver policy input for GitHub-backed skills.
     expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
     expectInstalledSkill(result, {
       slug: "aiq-deploy",

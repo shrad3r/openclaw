@@ -37,10 +37,13 @@ openclaw plugins update <id-or-npm-spec>
 Skill installs target the active workspace `skills/` directory by default. Add
 `--global` to install into the shared managed skills directory.
 
-OpenClaw checks the selected ClawHub skill or plugin release trust state before
-downloading it. Malicious or blocked releases are refused. Risky releases
-require review and `--acknowledge-clawhub-risk` when a non-interactive command
-should continue after that review.
+OpenClaw checks the selected ClawHub skill or plugin trust state before
+downloading it. Versioned ClawHub skill and plugin releases use exact-release
+trust metadata; resolver-backed GitHub skills rely on ClawHub's install
+resolver to enforce scan and force-install policy before it returns a pinned
+commit. Malicious or blocked releases are refused. Risky releases require
+review and `--acknowledge-clawhub-risk` when a non-interactive command should
+continue after that review.
 
 Plugin installs use the `clawhub:` prefix when you want ClawHub resolution
 instead of npm or another install source.

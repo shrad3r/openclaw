@@ -302,6 +302,7 @@ export type ClawHubSkillInstallResolutionResponse =
       ok: true;
       slug: string;
       installKind: "github";
+      /** Commit-pinned source approved by ClawHub's install resolver policy. */
       github: {
         repo: string;
         path: string;

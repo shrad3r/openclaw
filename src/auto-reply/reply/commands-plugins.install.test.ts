@@ -343,6 +343,7 @@ describe("handleCommands /plugins install", () => {
   it("includes non-blocking ClawHub warnings in successful chat install replies", async () => {
     const warning =
       'ClawHub trust warning for "@openclaw/clawhub-demo@1.2.3": scan=pending; reasons=pending.';
+    const richWarning = `\u001b[33m${warning}\u001b[39m`;
     installPluginFromClawHubMock.mockImplementation(async (params: unknown) => {
       if (!params || typeof params !== "object" || !("logger" in params)) {
         throw new Error("expected ClawHub install logger");
@@ -356,7 +357,7 @@ describe("handleCommands /plugins install", () => {
       ) {
         throw new Error("expected ClawHub install warn logger");
       }
-      logger.warn(warning);
+      logger.warn(richWarning);
       return {
         ok: true,
         pluginId: "clawhub-demo",
@@ -390,6 +391,7 @@ describe("handleCommands /plugins install", () => {
       }
       expect(result.reply?.text).toContain('Installed plugin "clawhub-demo"');
       expect(result.reply?.text).toContain(warning);
+      expect(result.reply?.text).not.toContain("\u001b");
       expect(mockFirstObjectArg(installPluginFromClawHubMock).logger).toEqual(
         expect.objectContaining({ terminalLinks: false }),
       );

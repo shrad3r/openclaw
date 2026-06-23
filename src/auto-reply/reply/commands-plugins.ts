@@ -1,6 +1,7 @@
 // Implements plugin command listing, install, and configuration helpers.
 import fs from "node:fs";
 import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
+import { stripAnsi } from "../../../packages/terminal-core/src/ansi.js";
 import { buildNpmInstallRecordFields } from "../../cli/npm-resolution.js";
 import { resolveOfficialExternalNpmPackageTrust } from "../../cli/plugin-install-plan.js";
 import {
@@ -296,7 +297,7 @@ async function installPluginFromPluginsCommand(params: {
       logger: {
         info: logger.info,
         warn: (message) => {
-          warnings.push(message);
+          warnings.push(stripAnsi(message));
           logger.warn(message);
         },
         terminalLinks: false,

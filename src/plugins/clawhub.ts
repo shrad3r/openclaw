@@ -428,9 +428,6 @@ function isClawHubArtifactDownloadPolicyBlock(error: unknown): boolean {
   if (!(error instanceof ClawHubRequestError)) {
     return false;
   }
-  if (error.status === 401 || error.status === 403) {
-    return true;
-  }
   const body = normalizeLowercaseStringOrEmpty(error.responseBody);
   return (
     body.includes("blocked from download") ||

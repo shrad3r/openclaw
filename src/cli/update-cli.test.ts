@@ -2037,6 +2037,43 @@ describe("update-cli", () => {
     expect(output).toContain("Run openclaw plugins inspect demo --runtime --json for details.");
   });
 
+  it("dedupes rich logged ClawHub update warnings against plain outcome warnings", async () => {
+    const trustWarning =
+      "╭─ WARNING - ClawHub found security risks in this release ─╮\n" +
+      "│ • Security scan:     suspicious                                      │\n" +
+      "│ • Finding:           suspicious payload strings                       │\n" +
+      "╰───────────────────────────────────────────────────────────────────────╯";
+    const richTrustWarning = `\u001b[33m${trustWarning}\u001b[39m`;
+    updateNpmInstalledPlugins.mockImplementationOnce(
+      async (params: { config: OpenClawConfig; logger?: { warn?: (message: string) => void } }) => {
+        params.logger?.warn?.(richTrustWarning);
+        return {
+          changed: false,
+          config: params.config,
+          outcomes: [
+            {
+              pluginId: "demo",
+              status: "skipped",
+              warning: trustWarning,
+              message:
+                "Skipped demo ClawHub update: Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning. Existing installed plugin left unchanged.",
+            },
+          ],
+        };
+      },
+    );
+
+    await updateCommand({ yes: true, restart: false });
+
+    const output = vi
+      .mocked(defaultRuntime.log)
+      .mock.calls.map((call) => String(call[0]))
+      .join("\n");
+    const trustWarningOccurrences = output.split(trustWarning).length - 1;
+    expect(trustWarningOccurrences).toBe(1);
+    expect(output).toContain("Skipped demo ClawHub update");
+  });
+
   it("detects missing plugin payloads from persisted records before npm updates", async () => {
     const installPath = createCaseDir("openclaw-missing-plugin-payload");
     fsSync.mkdirSync(installPath, { recursive: true });
@@ -5945,7 +5982,7 @@ describe("update-cli", () => {
       throw new Error("expected plugin logger");
     }
 
-    logger.warn(warning);
+    logger.warn(`\u001b[33m${warning}\u001b[39m`);
     confirm.mockResolvedValueOnce(true);
     await syncCall.onClawHubRisk({
       packageName: "demo",

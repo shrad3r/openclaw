@@ -1458,6 +1458,47 @@ describe("installPluginFromClawHub", () => {
     expect(installPluginFromArchiveMock).not.toHaveBeenCalled();
   });
 
+  it("keeps generic forbidden ClawHub ClawPack downloads fallback-eligible", async () => {
+    fetchClawHubPackageVersionMock.mockResolvedValueOnce({
+      version: {
+        version: "2026.3.22",
+        createdAt: 0,
+        changelog: "",
+        compatibility: {
+          pluginApiRange: ">=2026.3.22",
+          minGatewayVersion: "2026.3.0",
+        },
+        artifact: {
+          kind: "npm-pack",
+          format: "tgz",
+          sha256: DEMO_CLAWPACK_SHA256,
+        },
+      },
+    });
+    downloadClawHubPackageArchiveMock.mockRejectedValueOnce(
+      new ClawHubRequestError({
+        path: "/api/v1/packages/demo/versions/2026.3.22/artifact/download",
+        status: 403,
+        body: "Forbidden.",
+      }),
+    );
+
+    const result = await installPluginFromClawHub({
+      spec: "clawhub:demo",
+      baseUrl: "https://clawhub.ai",
+    });
+
+    const failure = expectInstallFailure(result);
+    expect(failure.code).toBe(CLAWHUB_INSTALL_ERROR_CODE.ARTIFACT_UNAVAILABLE);
+    expect(failure.error).toContain(
+      'ClawHub artifact download for "demo@2026.3.22" is not available yet',
+    );
+    expect(failure.error).toContain('Use "npm:demo@2026.3.22"');
+    expect(failure.version).toBeUndefined();
+    expect(archiveDownloadCall().artifact).toBe("clawpack");
+    expect(installPluginFromArchiveMock).not.toHaveBeenCalled();
+  });
+
   it("does not persist package-level ClawPack metadata for version records without ClawPack facts", async () => {
     parseClawHubPluginSpecMock.mockReturnValueOnce({ name: "demo", version: "2026.3.21" });
     fetchClawHubPackageDetailMock.mockResolvedValueOnce({

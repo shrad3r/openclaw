@@ -1864,6 +1864,11 @@ export async function updatePluginsAfterCoreUpdate(params: {
 
   const clawHubTrustNotices = new Set<string>();
   const loggedPluginWarnings = new Set<string>();
+  const hasLoggedPluginWarning = (message: string): boolean =>
+    loggedPluginWarnings.has(stripAnsi(message));
+  const recordLoggedPluginWarning = (message: string): void => {
+    loggedPluginWarnings.add(stripAnsi(message));
+  };
   const recordClawHubTrustNotice = (message: string): void => {
     const shouldRecord = params.opts.json
       ? isClawHubTrustNotice(message)
@@ -1880,7 +1885,7 @@ export async function updatePluginsAfterCoreUpdate(params: {
       }
     },
     warn: (msg: string) => {
-      loggedPluginWarnings.add(msg);
+      recordLoggedPluginWarning(msg);
       recordClawHubTrustNotice(msg);
       if (!params.opts.json) {
         defaultRuntime.log(formatPluginUpdateWarning(msg));
@@ -1903,10 +1908,10 @@ export async function updatePluginsAfterCoreUpdate(params: {
     params.opts,
     {
       renderWarningBeforePrompt: (warning) => {
-        if (loggedPluginWarnings.has(warning)) {
+        if (hasLoggedPluginWarning(warning)) {
           return;
         }
-        loggedPluginWarnings.add(warning);
+        recordLoggedPluginWarning(warning);
         recordClawHubTrustNotice(warning);
         if (!params.opts.json) {
           defaultRuntime.log(formatPluginUpdateWarning(warning));
@@ -2029,7 +2034,7 @@ export async function updatePluginsAfterCoreUpdate(params: {
   npmPluginsChanged ||= npmResult.changed;
   for (const rawOutcome of npmResult.outcomes) {
     const includeWarningInReason =
-      params.opts.json || !rawOutcome.warning || !loggedPluginWarnings.has(rawOutcome.warning);
+      params.opts.json || !rawOutcome.warning || !hasLoggedPluginWarning(rawOutcome.warning);
     const guided = createGuidedPostUpdatePluginOutcome(rawOutcome, { includeWarningInReason });
     pluginUpdateOutcomes.push(guided.outcome);
     if (guided.warning) {
@@ -2182,7 +2187,7 @@ export async function updatePluginsAfterCoreUpdate(params: {
     );
   }
   for (const warning of syncResult.summary.warnings) {
-    if (!loggedPluginWarnings.has(warning)) {
+    if (!hasLoggedPluginWarning(warning)) {
       defaultRuntime.log(formatPluginUpdateWarning(warning));
     }
   }

@@ -61,6 +61,12 @@ type QaStartedOpenClawCrablineAdapter = Omit<
   manifest: QaCrablineManifest;
 };
 
+type CrablineInboundRequest = {
+  providerBody: Record<string, unknown>;
+  providerHeaders?: Record<string, string> | undefined;
+  providerUrl?: string | undefined;
+};
+
 type StartQaCrablineAdapter = (params: {
   channel: QaCrablineProviderChannel;
   openclawConfig?: Record<string, unknown> | undefined;
@@ -152,18 +158,14 @@ async function waitForCrablineReady(params: {
 
 async function postCrablineInbound(params: {
   adapter: QaStartedOpenClawCrablineAdapter;
-  providerBody: Record<string, unknown>;
+  providerInbound: CrablineInboundRequest;
 }) {
   const { response, release } = await fetchWithSsrFGuard({
-    url: params.adapter.manifest.endpoints.adminInboundUrl,
+    url: params.providerInbound.providerUrl ?? params.adapter.manifest.endpoints.adminInboundUrl,
     init: {
-      body: JSON.stringify(params.providerBody),
-      headers: {
-        ...(params.adapter.manifest.adminToken
-          ? { authorization: `Bearer ${params.adapter.manifest.adminToken}` }
-          : {}),
-        "content-type": "application/json",
-      },
+      body: JSON.stringify(params.providerInbound.providerBody),
+      headers:
+        params.providerInbound.providerHeaders ?? createCrablineInboundHeaders(params.adapter),
       method: "POST",
     },
     policy: { allowPrivateNetwork: true },
@@ -178,6 +180,17 @@ async function postCrablineInbound(params: {
   } finally {
     await release();
   }
+}
+
+function createCrablineInboundHeaders(
+  adapter: QaStartedOpenClawCrablineAdapter,
+): Record<string, string> {
+  return {
+    ...(adapter.manifest.adminToken
+      ? { authorization: `Bearer ${adapter.manifest.adminToken}` }
+      : {}),
+    "content-type": "application/json",
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -469,7 +482,7 @@ function createCrablineState(params: {
       });
       await postCrablineInbound({
         adapter: params.adapter,
-        providerBody: providerInbound.providerBody,
+        providerInbound,
       });
       return message;
     },

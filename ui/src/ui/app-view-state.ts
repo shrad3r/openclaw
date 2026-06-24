@@ -432,6 +432,7 @@ export type AppViewState = {
       text: string;
       acknowledgeSlug?: string;
       acknowledgeVersion?: string;
+      acknowledgeLabel?: string;
     } | null;
     clawhubVerdicts: Record<string, ClawHubSkillSecurityVerdict>;
     clawhubVerdictsLoading: boolean;

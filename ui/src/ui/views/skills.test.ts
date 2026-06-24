@@ -405,7 +405,7 @@ describe("renderSkills", () => {
 
     const retryButton = container.querySelector<HTMLButtonElement>(".callout button");
     expect(normalizeText(container.querySelector(".callout")!)).toBe(
-      "REVIEW REQUIRED - ClawHub found suspicious behavior. Install anyway",
+      "REVIEW REQUIRED - ClawHub found suspicious behavior. Acknowledge risk and install",
     );
     expect(retryButton).toBeInstanceOf(HTMLButtonElement);
     retryButton!.click();

@@ -63,7 +63,10 @@ import {
 } from "../../../plugins/official-external-plugin-catalog.js";
 import type { PluginMetadataSnapshot } from "../../../plugins/plugin-metadata-snapshot.types.js";
 import { resolveProviderInstallCatalogEntries } from "../../../plugins/provider-install-catalog.js";
-import { updateNpmInstalledPlugins } from "../../../plugins/update.js";
+import {
+  isClawHubTrustSkippedOutcome,
+  updateNpmInstalledPlugins,
+} from "../../../plugins/update.js";
 import {
   resolveWebSearchInstallCatalogEntriesForEnv,
   resolveWebSearchInstallCatalogEntry,
@@ -142,47 +145,8 @@ function shellQuotePosixArg(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-function isClawHubRiskAcknowledgementSkippedOutcome(outcome: {
-  status: string;
-  message: string;
-}): boolean {
-  return (
-    outcome.status === "skipped" &&
-    outcome.message.includes("ClawHub") &&
-    outcome.message.includes("--acknowledge-clawhub-risk")
-  );
-}
-
-function isClawHubDownloadBlockedSkippedOutcome(outcome: {
-  status: string;
-  code?: string;
-}): boolean {
-  return (
-    outcome.status === "skipped" &&
-    outcome.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED
-  );
-}
-
-function isClawHubSecurityUnavailableSkippedOutcome(outcome: {
-  status: string;
-  code?: string;
-}): boolean {
-  return (
-    outcome.status === "skipped" &&
-    outcome.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE
-  );
-}
-
-function isActionableClawHubSkippedOutcome(outcome: {
-  status: string;
-  message: string;
-  code?: string;
-}): boolean {
-  return (
-    isClawHubRiskAcknowledgementSkippedOutcome(outcome) ||
-    isClawHubDownloadBlockedSkippedOutcome(outcome) ||
-    isClawHubSecurityUnavailableSkippedOutcome(outcome)
-  );
+function isActionableClawHubSkippedOutcome(outcome: { status: string; code?: string }): boolean {
+  return isClawHubTrustSkippedOutcome(outcome);
 }
 
 function isClawHubReviewNotice(message: string): boolean {

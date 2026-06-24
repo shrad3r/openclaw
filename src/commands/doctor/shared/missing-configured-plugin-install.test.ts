@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveRegistryUpdateChannel } from "../../../infra/update-channels.js";
+import { CLAWHUB_INSTALL_ERROR_CODE } from "../../../plugins/clawhub-error-codes.js";
 import {
   resolveClawHubInstallSpecsForUpdateChannel,
   resolveNpmInstallSpecsForUpdateChannel,
@@ -179,9 +180,13 @@ vi.mock("../../../plugins/provider-install-catalog.js", () => ({
   resolveProviderInstallCatalogEntries: mocks.resolveProviderInstallCatalogEntries,
 }));
 
-vi.mock("../../../plugins/update.js", () => ({
-  updateNpmInstalledPlugins: mocks.updateNpmInstalledPlugins,
-}));
+vi.mock("../../../plugins/update.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../plugins/update.js")>();
+  return {
+    ...actual,
+    updateNpmInstalledPlugins: mocks.updateNpmInstalledPlugins,
+  };
+});
 
 describe("repairMissingConfiguredPluginInstalls", () => {
   beforeEach(() => {
@@ -3076,6 +3081,7 @@ describe("repairMissingConfiguredPluginInstalls", () => {
         {
           pluginId: "demo",
           status: "skipped",
+          code: CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED,
           message:
             'Skipped demo ClawHub update: ClawHub release "@openclaw/plugin-demo@1.0.0" has trust warnings. Review the package and rerun with --acknowledge-clawhub-risk to continue. Existing installed plugin left unchanged.',
         },
@@ -3116,6 +3122,7 @@ describe("repairMissingConfiguredPluginInstalls", () => {
         {
           pluginId: "demo",
           status: "skipped",
+          code: CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED,
           message:
             'Skipped demo ClawHub update: ClawHub release "@openclaw/plugin-demo@latest" has trust warnings. Review the package and rerun with --acknowledge-clawhub-risk to continue. Existing installed plugin left unchanged.',
         },

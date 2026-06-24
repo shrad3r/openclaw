@@ -115,6 +115,7 @@ import {
   resolveTrustedSourceLinkedOfficialNpmSpec,
 } from "../../plugins/official-external-install-records.js";
 import {
+  isClawHubTrustSkippedOutcome,
   syncPluginsForUpdateChannel,
   updateNpmInstalledPlugins,
   type PluginUpdateIntegrityDriftParams,
@@ -659,29 +660,8 @@ function isDisabledAfterFailureOutcome(outcome: PluginUpdateOutcome): boolean {
   return outcome.status === "skipped" && outcome.message.includes("after plugin update failure");
 }
 
-function isClawHubRiskAcknowledgementSkippedOutcome(outcome: PluginUpdateOutcome): boolean {
-  return (
-    outcome.status === "skipped" &&
-    outcome.message.includes("ClawHub") &&
-    outcome.message.includes("--acknowledge-clawhub-risk")
-  );
-}
-
-function isClawHubDownloadBlockedSkippedOutcome(outcome: PluginUpdateOutcome): boolean {
-  return outcome.status === "skipped" && outcome.code === "clawhub_download_blocked";
-}
-
-function isClawHubSecurityUnavailableSkippedOutcome(outcome: PluginUpdateOutcome): boolean {
-  return outcome.status === "skipped" && outcome.code === "clawhub_security_unavailable";
-}
-
 function isActionableSkippedPostUpdateOutcome(outcome: PluginUpdateOutcome): boolean {
-  return (
-    isDisabledAfterFailureOutcome(outcome) ||
-    isClawHubRiskAcknowledgementSkippedOutcome(outcome) ||
-    isClawHubDownloadBlockedSkippedOutcome(outcome) ||
-    isClawHubSecurityUnavailableSkippedOutcome(outcome)
-  );
+  return isDisabledAfterFailureOutcome(outcome) || isClawHubTrustSkippedOutcome(outcome);
 }
 
 /**

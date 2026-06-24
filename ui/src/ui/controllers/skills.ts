@@ -1,4 +1,8 @@
 // Control UI controller manages skills gateway state.
+import {
+  ClawHubTrustErrorCodes,
+  readClawHubTrustErrorDetails,
+} from "../../../../packages/gateway-protocol/src/clawhub-trust-error-details.js";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   AgentsListResult,
@@ -92,6 +96,7 @@ export type SkillsState = {
     text: string;
     acknowledgeSlug?: string;
     acknowledgeVersion?: string;
+    acknowledgeLabel?: string;
   } | null;
   clawhubVerdicts: Record<string, ClawHubSkillSecurityVerdict>;
   clawhubVerdictsLoading: boolean;
@@ -118,47 +123,36 @@ function setSkillMessage(state: SkillsState, key: string, message: SkillMessage)
 
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-function readClawHubTrustWarning(details: unknown): string | undefined {
-  if (!details || typeof details !== "object") {
-    return undefined;
-  }
-  const warning = (details as { warning?: unknown }).warning;
-  return typeof warning === "string" && warning.trim() ? warning : undefined;
-}
-
 function getClawHubTrustWarningFromError(err: unknown): string | undefined {
   if (!err || typeof err !== "object" || !("details" in err)) {
     return undefined;
   }
-  return readClawHubTrustWarning((err as { details?: unknown }).details);
+  return readClawHubTrustErrorDetails((err as { details?: unknown }).details)?.warning;
 }
 
-function getClawHubTrustCodeFromError(err: unknown): string | undefined {
+function getClawHubTrustCodeFromError(err: unknown) {
   if (!err || typeof err !== "object" || !("details" in err)) {
     return undefined;
   }
-  const details = (err as { details?: unknown }).details;
-  if (!details || typeof details !== "object") {
-    return undefined;
-  }
-  const code = (details as { clawhubTrustCode?: unknown }).clawhubTrustCode;
-  return typeof code === "string" && code.trim() ? code : undefined;
+  return readClawHubTrustErrorDetails((err as { details?: unknown }).details)?.clawhubTrustCode;
 }
 
 function getClawHubTrustVersionFromError(err: unknown): string | undefined {
   if (!err || typeof err !== "object" || !("details" in err)) {
     return undefined;
   }
-  const details = (err as { details?: unknown }).details;
-  if (!details || typeof details !== "object") {
-    return undefined;
-  }
-  const version = (details as { version?: unknown }).version;
-  return typeof version === "string" && version.trim() ? version : undefined;
+  return readClawHubTrustErrorDetails((err as { details?: unknown }).details)?.version;
 }
 
 function formatClawHubInstallMessage(message: string, warning?: string): string {
   return warning ? `${message}\n\n${warning}` : message;
+}
+
+function formatClawHubAcknowledgementMessage(warning?: string): string {
+  return formatClawHubInstallMessage(
+    "Review the ClawHub warning before installing this skill.",
+    warning,
+  );
 }
 
 export function clawhubVerdictKey(target: {
@@ -640,16 +634,16 @@ export async function installFromClawHub(
   } catch (err) {
     if (isSkillsAgentScopeCurrent(state, agentScope)) {
       const needsAcknowledgement =
-        getClawHubTrustCodeFromError(err) === "clawhub_risk_acknowledgement_required";
+        getClawHubTrustCodeFromError(err) === ClawHubTrustErrorCodes.RISK_ACKNOWLEDGEMENT_REQUIRED;
       const acknowledgeVersion = getClawHubTrustVersionFromError(err);
       state.clawhubInstallMessage = {
         kind: "error",
-        text: formatClawHubInstallMessage(
-          getErrorMessage(err),
-          getClawHubTrustWarningFromError(err),
-        ),
+        text: needsAcknowledgement
+          ? formatClawHubAcknowledgementMessage(getClawHubTrustWarningFromError(err))
+          : formatClawHubInstallMessage(getErrorMessage(err), getClawHubTrustWarningFromError(err)),
         ...(needsAcknowledgement ? { acknowledgeSlug: slug } : {}),
         ...(needsAcknowledgement && acknowledgeVersion ? { acknowledgeVersion } : {}),
+        ...(needsAcknowledgement ? { acknowledgeLabel: "Acknowledge risk and install" } : {}),
       };
     }
   } finally {

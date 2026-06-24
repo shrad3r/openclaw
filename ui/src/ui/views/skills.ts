@@ -83,6 +83,7 @@ export type SkillsProps = {
     text: string;
     acknowledgeSlug?: string;
     acknowledgeVersion?: string;
+    acknowledgeLabel?: string;
   } | null;
   onFilterChange: (next: string) => void;
   onAgentChange: (agentId: string) => void;
@@ -321,14 +322,18 @@ export function renderSkills(props: SkillsProps) {
         ${props.clawhubInstallMessage
           ? html`<div
               class="callout ${props.clawhubInstallMessage.kind === "error" ? "danger" : "success"}"
-              style="margin-top: 8px; white-space: pre-wrap;"
+              style="margin-top: 8px;"
             >
-              <div>${props.clawhubInstallMessage.text}</div>
+              <div
+                style="max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;"
+              >
+                ${props.clawhubInstallMessage.text}
+              </div>
               ${props.clawhubInstallMessage.acknowledgeSlug
                 ? html`<button
                     type="button"
                     class="btn btn--sm"
-                    style="margin-top: 10px;"
+                    style="margin-top: 10px; white-space: normal;"
                     ?disabled=${props.clawhubInstallSlug ===
                     props.clawhubInstallMessage.acknowledgeSlug}
                     @click=${() =>
@@ -338,7 +343,8 @@ export function renderSkills(props: SkillsProps) {
                         props.clawhubInstallMessage?.acknowledgeVersion,
                       )}
                   >
-                    Install anyway
+                    ${props.clawhubInstallMessage.acknowledgeLabel ??
+                    "Acknowledge risk and install"}
                   </button>`
                 : nothing}
             </div>`

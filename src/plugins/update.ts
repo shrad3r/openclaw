@@ -3,6 +3,7 @@ import path from "node:path";
 import { isRecord } from "@openclaw/normalization-core/record-coerce";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
+import type { ClawHubTrustErrorCode } from "../infra/clawhub-install-trust.js";
 import { parseClawHubPluginSpec } from "../infra/clawhub-spec.js";
 import { satisfiesPluginApiRange } from "../infra/clawhub.js";
 import { unscopedPackageName } from "../infra/install-safe-path.js";
@@ -28,12 +29,9 @@ import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveCompatibilityHostVersion } from "../version.js";
 import { resolveBundledPluginSources } from "./bundled-sources.js";
+import { CLAWHUB_INSTALL_ERROR_CODE } from "./clawhub-error-codes.js";
 import { buildClawHubPluginInstallRecordFields } from "./clawhub-install-records.js";
-import {
-  CLAWHUB_INSTALL_ERROR_CODE,
-  installPluginFromClawHub,
-  type ClawHubRiskAcknowledgementRequest,
-} from "./clawhub.js";
+import { installPluginFromClawHub, type ClawHubRiskAcknowledgementRequest } from "./clawhub.js";
 import { normalizePluginsConfig, resolveEffectiveEnableState } from "./config-state.js";
 import {
   getExternalizedBundledPluginLegacyPathSuffix,
@@ -93,16 +91,24 @@ export type PluginUpdateChannelFallback = {
   message: string;
 };
 
-export type PluginUpdateOutcome = {
+type BasePluginUpdateOutcome = {
   pluginId: string;
-  status: PluginUpdateStatus;
   message: string;
-  code?: string;
   currentVersion?: string;
   nextVersion?: string;
   channelFallback?: PluginUpdateChannelFallback;
   warning?: string;
 };
+
+export type PluginUpdateOutcome =
+  | (BasePluginUpdateOutcome & {
+      status: "skipped";
+      code?: ClawHubTrustErrorCode;
+    })
+  | (BasePluginUpdateOutcome & {
+      status: Exclude<PluginUpdateStatus, "skipped">;
+      code?: string;
+    });
 
 export type PluginUpdateSummary = {
   config: OpenClawConfig;
@@ -217,6 +223,17 @@ function isClawHubSecurityUnavailable(result: { ok: false; code?: string }): boo
   return result.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE;
 }
 
+function readClawHubTrustErrorCode(result: { code?: string }): ClawHubTrustErrorCode | undefined {
+  if (
+    result.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED ||
+    result.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED ||
+    result.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE
+  ) {
+    return result.code;
+  }
+  return undefined;
+}
+
 function shouldSkipClawHubTrustFailureForExistingInstall(params: {
   result: { ok: false; code?: string; version?: string };
   currentVersion: string | undefined;
@@ -241,7 +258,7 @@ function buildClawHubTrustSkippedOutcome(params: {
   pluginId: string;
   phase: "check" | "update";
   error: string;
-  code?: string;
+  code: ClawHubTrustErrorCode;
   warning?: string;
   currentVersion?: string;
 }): PluginUpdateOutcome {
@@ -253,6 +270,15 @@ function buildClawHubTrustSkippedOutcome(params: {
     ...(params.warning ? { warning: params.warning } : {}),
     message: `Skipped ${params.pluginId} ClawHub ${params.phase}: ${params.error} Existing installed plugin left unchanged.`,
   };
+}
+
+export function isClawHubTrustSkippedOutcome(outcome: { status: string; code?: string }): boolean {
+  return (
+    outcome.status === "skipped" &&
+    (outcome.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_RISK_ACKNOWLEDGEMENT_REQUIRED ||
+      outcome.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_DOWNLOAD_BLOCKED ||
+      outcome.code === CLAWHUB_INSTALL_ERROR_CODE.CLAWHUB_SECURITY_UNAVAILABLE)
+  );
 }
 
 function formatGitInstallFailure(params: {
@@ -1833,12 +1859,16 @@ export async function updateNpmInstalledPlugins(params: {
             currentVersion,
           })
         ) {
+          const code = readClawHubTrustErrorCode(probe);
+          if (!code) {
+            continue;
+          }
           outcomes.push(
             buildClawHubTrustSkippedOutcome({
               pluginId,
               phase: "check",
               error: probe.error,
-              ...(probe.code ? { code: probe.code } : {}),
+              code,
               ...("warning" in probe && probe.warning ? { warning: probe.warning } : {}),
               ...(currentVersion ? { currentVersion } : {}),
             }),
@@ -2113,12 +2143,16 @@ export async function updateNpmInstalledPlugins(params: {
           currentVersion,
         })
       ) {
+        const code = readClawHubTrustErrorCode(result);
+        if (!code) {
+          continue;
+        }
         outcomes.push(
           buildClawHubTrustSkippedOutcome({
             pluginId,
             phase: "update",
             error: result.error,
-            ...(result.code ? { code: result.code } : {}),
+            code,
             ...("warning" in result && result.warning ? { warning: result.warning } : {}),
             ...(currentVersion ? { currentVersion } : {}),
           }),

@@ -837,10 +837,11 @@ describe("skill mutations", () => {
     expect(state.clawhubInstallMessage).toEqual({
       kind: "error",
       text:
-        "ClawHub requires acknowledgement before installing.\n\n" +
+        "Review the ClawHub warning before installing this skill.\n\n" +
         "REVIEW REQUIRED - ClawHub found suspicious behavior.",
       acknowledgeSlug: "github",
       acknowledgeVersion: "1.2.3",
+      acknowledgeLabel: "Acknowledge risk and install",
     });
 
     await installFromClawHub(

@@ -1,6 +1,7 @@
 // Gateway RPC handlers for skill discovery, install/update, and proposal workflows.
 import { normalizeOptionalString } from "@openclaw/normalization-core/string-coerce";
 import {
+  buildClawHubTrustErrorDetails,
   ErrorCodes,
   errorShape,
   validateSkillsBinsParams,
@@ -116,21 +117,6 @@ function buildRemoteAwareWorkspaceSkillStatus(resolved: ResolvedSkillsWorkspace)
 
 function respondSkillWorkshopError(respond: RespondFn, err: unknown) {
   respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, formatErrorMessage(err)));
-}
-
-function buildClawHubTrustErrorDetails(result: {
-  code?: string;
-  version?: string;
-  warning?: string;
-}): { clawhubTrustCode?: string; version?: string; warning?: string } | undefined {
-  if (!result.code && !result.version && !result.warning) {
-    return undefined;
-  }
-  return {
-    ...(result.code ? { clawhubTrustCode: result.code } : {}),
-    ...(result.version ? { version: result.version } : {}),
-    ...(result.warning ? { warning: result.warning } : {}),
-  };
 }
 
 function collectClawHubTrustWarnings(results: Array<{ warning?: string }>): string[] {

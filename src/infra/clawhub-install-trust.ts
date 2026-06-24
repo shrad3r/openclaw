@@ -6,11 +6,13 @@ import { formatTerminalLink } from "../../packages/terminal-core/src/terminal-li
 import { theme } from "../../packages/terminal-core/src/theme.js";
 import {
   fetchClawHubPackageSecurity,
+  fetchClawHubSkillVerification,
   fetchClawHubSkillSecurityVerdicts,
   resolveClawHubBaseUrl,
   type ClawHubPackageSecurityResponse,
   type ClawHubPackageSecurityTrust,
   type ClawHubSkillSecurityVerdictItem,
+  type ClawHubSkillVerificationResponse,
 } from "./clawhub.js";
 import { formatErrorMessage } from "./errors.js";
 
@@ -746,6 +748,112 @@ function resolveSkillSecurityLinks(
   };
 }
 
+function readObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function readOptionalStringField(value: unknown, field: string): string | undefined {
+  const record = readObject(value);
+  return normalizeOptionalString(record?.[field]);
+}
+
+function readOptionalNumberField(value: unknown, field: string): number | undefined {
+  const record = readObject(value);
+  const raw = record?.[field];
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
+}
+
+function isOwnerQualifiedSkillNotFoundVerdict(item: ClawHubSkillSecurityVerdictItem): boolean {
+  return item.error?.code === "skill_not_found";
+}
+
+function mapSkillVerificationToSecurityVerdictItem(params: {
+  verification: ClawHubSkillVerificationResponse;
+  slug: string;
+  ownerHandle: string;
+  version: string;
+}): ClawHubSkillSecurityVerdictItem {
+  const skill = readObject(params.verification.skill);
+  const publisher = readObject(params.verification.publisher);
+  const versionRecord = readObject(params.verification.version);
+  const pageUrl = normalizeOptionalString(params.verification.pageUrl);
+  return {
+    ok: params.verification.ok,
+    decision: params.verification.decision,
+    reasons: params.verification.reasons,
+    requestedSlug: params.slug,
+    requestedVersion: params.version,
+    slug:
+      normalizeOptionalString(params.verification.slug) ?? readOptionalStringField(skill, "slug"),
+    version:
+      normalizeOptionalString(params.verification.version) ??
+      readOptionalStringField(versionRecord, "version") ??
+      params.version,
+    displayName:
+      normalizeOptionalString(params.verification.displayName) ??
+      readOptionalStringField(skill, "displayName"),
+    publisherHandle:
+      normalizeOptionalString(params.verification.publisherHandle) ??
+      readOptionalStringField(publisher, "handle") ??
+      params.ownerHandle,
+    publisherDisplayName:
+      normalizeOptionalString(params.verification.publisherDisplayName) ??
+      readOptionalStringField(publisher, "displayName"),
+    createdAt:
+      params.verification.createdAt ?? readOptionalNumberField(versionRecord, "createdAt") ?? null,
+    checkedAt: readOptionalNumberField(params.verification.security, "checkedAt") ?? null,
+    ...(pageUrl ? { skillUrl: pageUrl } : {}),
+    ...(pageUrl
+      ? {
+          securityAuditUrl: `${pageUrl}/security-audit?version=${encodeURIComponent(params.version)}`,
+        }
+      : {}),
+    security: params.verification.security,
+  };
+}
+
+async function fetchOwnerQualifiedSkillSecurityFallback(params: {
+  subject: {
+    kind: "skill";
+    packageName: string;
+    ownerHandle?: string;
+  };
+  version: string;
+  baseUrl?: string;
+  token?: string;
+  timeoutMs?: number;
+}): Promise<ClawHubFetchedSubjectSecurity> {
+  const ownerHandle = params.subject.ownerHandle;
+  if (!ownerHandle) {
+    throw new Error("owner-qualified skill fallback requires ownerHandle");
+  }
+  const verification = await fetchClawHubSkillVerification({
+    slug: params.subject.packageName,
+    ownerHandle,
+    version: params.version,
+    baseUrl: params.baseUrl,
+    token: params.token,
+    timeoutMs: params.timeoutMs,
+  });
+  const item = mapSkillVerificationToSecurityVerdictItem({
+    verification,
+    slug: params.subject.packageName,
+    ownerHandle,
+    version: params.version,
+  });
+  return {
+    security: mapSkillSecurityVerdictToPackageSecurity({
+      item,
+      packageName: params.subject.packageName,
+      ownerHandle,
+      version: params.version,
+    }),
+    links: resolveSkillSecurityLinks(item),
+  };
+}
+
 async function fetchClawHubSubjectSecurity(params: {
   subject: ClawHubTrustSubject;
   version: string;
@@ -786,6 +894,19 @@ async function fetchClawHubSubjectSecurity(params: {
     throw new Error(
       `ClawHub skill trust check for "${formatClawHubReleaseLabel(params.subject.packageName, params.version)}" returned no verdict.`,
     );
+  }
+  if (params.subject.ownerHandle && isOwnerQualifiedSkillNotFoundVerdict(item)) {
+    return await fetchOwnerQualifiedSkillSecurityFallback({
+      subject: {
+        kind: "skill",
+        packageName: params.subject.packageName,
+        ownerHandle: params.subject.ownerHandle,
+      },
+      version: params.version,
+      baseUrl: params.baseUrl,
+      token: params.token,
+      timeoutMs: params.timeoutMs,
+    });
   }
   return {
     security: mapSkillSecurityVerdictToPackageSecurity({

@@ -326,6 +326,12 @@ export type ClawHubSkillVerificationResponse = {
   ok: boolean;
   decision: ClawHubSkillVerificationDecision;
   reasons: string[];
+  slug?: string | null;
+  displayName?: string | null;
+  pageUrl?: string | null;
+  publisherHandle?: string | null;
+  publisherDisplayName?: string | null;
+  createdAt?: number | null;
   skill: unknown;
   publisher: unknown;
   version: unknown;

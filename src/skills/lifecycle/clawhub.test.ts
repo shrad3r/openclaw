@@ -660,6 +660,43 @@ describe("skills-clawhub", () => {
 
   it("installs owner-qualified ClawHub skills without using owner as a local path", async () => {
     const workspaceDir = await tempDirs.make("openclaw-owner-skill-");
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: false,
+          decision: "fail",
+          reasons: ["skill.not_found"],
+          requestedSlug: "weather",
+          requestedVersion: "1.0.0",
+          slug: "weather",
+          version: null,
+          security: null,
+          error: {
+            code: "skill_not_found",
+            message: "Skill not found",
+          },
+        },
+      ],
+    });
+    fetchClawHubSkillVerificationMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.verify.v1",
+      ok: true,
+      decision: "pass",
+      reasons: [],
+      slug: "weather",
+      displayName: "Weather",
+      pageUrl: "https://clawhub.ai/demo-owner/skills/weather",
+      publisherHandle: "demo-owner",
+      publisherDisplayName: "Demo Owner",
+      version: "1.0.0",
+      createdAt: 123,
+      card: { available: true, sha256: "card-sha" },
+      artifact: { sourceFingerprint: "source-fp" },
+      provenance: { source: "unavailable" },
+      security: { status: "clean", passed: true },
+      signature: { status: "unsigned" },
+    });
     installPackageDirMock.mockImplementationOnce(async (params: { targetDir: string }) => {
       await fs.mkdir(params.targetDir, { recursive: true });
       await fs.writeFile(path.join(params.targetDir, "SKILL.md"), "# Weather\n", "utf8");
@@ -675,6 +712,26 @@ describe("skills-clawhub", () => {
       slug: "weather",
       ownerHandle: "demo-owner",
       baseUrl: undefined,
+    });
+    expect(fetchClawHubSkillSecurityVerdictsMock).toHaveBeenCalledWith({
+      items: [
+        {
+          slug: "weather",
+          ownerHandle: "demo-owner",
+          version: "1.0.0",
+        },
+      ],
+      baseUrl: undefined,
+      token: undefined,
+      timeoutMs: undefined,
+    });
+    expect(fetchClawHubSkillVerificationMock).toHaveBeenNthCalledWith(1, {
+      slug: "weather",
+      ownerHandle: "demo-owner",
+      version: "1.0.0",
+      baseUrl: undefined,
+      token: undefined,
+      timeoutMs: undefined,
     });
     expectInstallPackageSourceDir("/tmp/extracted-skill");
     expect(installPolicyInput()).toMatchObject({

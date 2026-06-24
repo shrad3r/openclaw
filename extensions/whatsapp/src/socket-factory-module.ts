@@ -11,7 +11,23 @@ type WhatsAppSocketFactoryModule = {
   default?: unknown;
 };
 
-function resolveSocketFactoryModuleSpecifier(value: string): string {
+function isWindowsAbsolutePath(value: string): boolean {
+  return /^[a-z]:[\\/]/iu.test(value) || /^\\\\[^\\]/u.test(value);
+}
+
+function windowsAbsolutePathToFileUrl(value: string): string {
+  const normalized = value.replace(/\\/gu, "/");
+  const specifier = normalized.startsWith("//") ? `file:${normalized}` : `file:///${normalized}`;
+  return new URL(specifier).href;
+}
+
+export function resolveSocketFactoryModuleSpecifier(value: string): string {
+  if (path.isAbsolute(value)) {
+    return pathToFileURL(value).href;
+  }
+  if (isWindowsAbsolutePath(value)) {
+    return windowsAbsolutePathToFileUrl(value);
+  }
   if (/^[a-z][a-z0-9+.-]*:/iu.test(value)) {
     return value;
   }

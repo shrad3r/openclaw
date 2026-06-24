@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   loadWhatsAppSocketFactoryFromEnv,
   OPENCLAW_WHATSAPP_SOCKET_FACTORY_MODULE_ENV,
+  resolveSocketFactoryModuleSpecifier,
 } from "./socket-factory-module.js";
 
 const tempDirs: string[] = [];
@@ -38,6 +39,15 @@ describe("loadWhatsAppSocketFactoryFromEnv", () => {
     });
 
     expect(await factory?.(false, false, {} as never)).toBe("ok");
+  });
+
+  it("normalizes Windows absolute module paths to file URLs", () => {
+    expect(resolveSocketFactoryModuleSpecifier("C:\\temp\\factory.mjs")).toBe(
+      "file:///C:/temp/factory.mjs",
+    );
+    expect(resolveSocketFactoryModuleSpecifier("\\\\server\\share\\factory.mjs")).toBe(
+      "file://server/share/factory.mjs",
+    );
   });
 
   it("loads the default export from a module URL", async () => {

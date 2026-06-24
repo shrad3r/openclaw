@@ -1,4 +1,4 @@
-// Qa Lab plugin module defines Crabline provider runtime extension points.
+// Qa Lab plugin module defines fake-provider runtime extension points.
 import type { StartedOpenClawCrablineAdapter } from "@openclaw/crabline";
 import type { QaTransportGatewayConfig } from "../qa-transport.js";
 

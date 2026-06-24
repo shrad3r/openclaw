@@ -1,10 +1,13 @@
-// Qa Lab plugin module implements WhatsApp-specific Crabline provider runtime setup.
+// Qa Lab plugin module implements WhatsApp-specific fake-provider runtime setup.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { appendNodeOption } from "./shared.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { OPENCLAW_WHATSAPP_SOCKET_FACTORY_MODULE_ENV } from "@openclaw/whatsapp/api.js";
 import type { QaCrablineProviderRuntime, QaStartedOpenClawCrablineAdapter } from "./types.js";
-import { WHATSAPP_FAKE_PROVIDER_PRELOAD_SOURCE } from "./whatsapp-preload.js";
+
+const WHATSAPP_SOCKET_FACTORY_SOURCE_PATH = fileURLToPath(
+  new URL("./whatsapp-socket-factory.mjs", import.meta.url),
+);
 
 async function stageWhatsAppAuthDir(params: {
   adapter: QaStartedOpenClawCrablineAdapter;
@@ -24,21 +27,19 @@ async function stageWhatsAppAuthDir(params: {
   return authDir;
 }
 
-async function stageWhatsAppPreload(outputDir: string): Promise<string> {
-  const preloadPath = path.join(outputDir, "artifacts", "crabline", "whatsapp-preload.mjs");
-  await fs.mkdir(path.dirname(preloadPath), { recursive: true });
-  await fs.writeFile(preloadPath, WHATSAPP_FAKE_PROVIDER_PRELOAD_SOURCE, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  return preloadPath;
+async function stageWhatsAppSocketFactory(outputDir: string): Promise<string> {
+  const factoryPath = path.join(outputDir, "artifacts", "crabline", "whatsapp-socket-factory.mjs");
+  await fs.mkdir(path.dirname(factoryPath), { recursive: true });
+  await fs.copyFile(WHATSAPP_SOCKET_FACTORY_SOURCE_PATH, factoryPath);
+  await fs.chmod(factoryPath, 0o600);
+  return factoryPath;
 }
 
-export const WHATSAPP_QA_CRABLINE_PROVIDER_RUNTIME: QaCrablineProviderRuntime = {
+export const WHATSAPP_FAKE_PROVIDER_RUNTIME: QaCrablineProviderRuntime = {
   channel: "whatsapp",
   async setup({ adapter, outputDir }) {
     const authDir = await stageWhatsAppAuthDir({ adapter, outputDir });
-    const preloadPath = await stageWhatsAppPreload(outputDir);
+    const socketFactoryPath = await stageWhatsAppSocketFactory(outputDir);
     return {
       augmentGatewayConfig(config) {
         const channels = config.channels ?? {};
@@ -73,13 +74,11 @@ export const WHATSAPP_QA_CRABLINE_PROVIDER_RUNTIME: QaCrablineProviderRuntime = 
         } = adapter.createChannelDriverSmokeEnv({});
         return {
           ...rest,
-          NODE_OPTIONS: appendNodeOption(
-            process.env.NODE_OPTIONS,
-            `--import=${pathToFileURL(preloadPath).href}`,
-          ),
+          [OPENCLAW_WHATSAPP_SOCKET_FACTORY_MODULE_ENV]: pathToFileURL(socketFactoryPath).href,
           OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN: CRABLINE_WHATSAPP_ACCESS_TOKEN,
           OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCOUNT_ID: adapter.accountId,
           OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT: CRABLINE_WHATSAPP_API_ROOT,
+          OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH: adapter.manifest.recorderPath,
           OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID: CRABLINE_WHATSAPP_SELF_JID,
         };
       },

@@ -74,7 +74,7 @@ function resolveToken(explicit?: string, accountId?: string, cfg?: OpenClawConfi
 
 function resolveSlackActionClientOptions(opts: SlackActionClientOpts) {
   if (!opts.cfg) {
-    return {};
+    return createSlackApiUrlClientOptions();
   }
   const cfg = requireRuntimeConfig(opts.cfg, "Slack actions");
   const account = resolveSlackAccount({ cfg, accountId: opts.accountId });

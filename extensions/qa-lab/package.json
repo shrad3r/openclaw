@@ -33,6 +33,14 @@
     ],
     "compat": {
       "pluginApi": ">=2026.6.10"
+    },
+    "build": {
+      "staticAssets": [
+        {
+          "source": "./src/crabline-provider-runtimes/whatsapp-socket-factory.mjs",
+          "output": "src/crabline-provider-runtimes/whatsapp-socket-factory.mjs"
+        }
+      ]
     }
   }
 }

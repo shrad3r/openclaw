@@ -38,7 +38,7 @@ describe("slack config schema", () => {
     }
   });
 
-  it("accepts Slack Web API URL overrides per account", () => {
+  it("accepts Slack Web API URL overrides per account for compatibility", () => {
     const res = SlackConfigSchema.safeParse({
       apiUrl: "http://127.0.0.1:49152/api/",
       accounts: { ops: { apiUrl: "http://127.0.0.1:49153/api/" } },

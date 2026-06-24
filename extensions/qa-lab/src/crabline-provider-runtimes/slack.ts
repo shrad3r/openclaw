@@ -1,33 +1,13 @@
-// Qa Lab plugin module implements Slack-specific Crabline provider runtime setup.
-import type { QaCrablineProviderRuntime } from "./types.js";
+// Qa Lab plugin module implements Slack fake-provider runtime setup.
+import { createDefaultFakeProviderRuntime } from "./shared.js";
 
-export const SLACK_QA_CRABLINE_PROVIDER_RUNTIME: QaCrablineProviderRuntime = {
-  channel: "slack",
-  async setup({ adapter }) {
+export const SLACK_FAKE_PROVIDER_RUNTIME = createDefaultFakeProviderRuntime("slack", {
+  mapRuntimeEnv(env) {
+    const { SLACK_API_URL, ...rest } = env;
+    const slackApiUrl = SLACK_API_URL?.trim();
     return {
-      augmentGatewayConfig(config) {
-        const env = adapter.createChannelDriverSmokeEnv({});
-        const apiUrl = env.SLACK_API_URL?.trim();
-        if (!apiUrl) {
-          return config;
-        }
-        const channels = config.channels ?? {};
-        const slack = channels.slack ?? {};
-        return {
-          ...config,
-          channels: {
-            ...channels,
-            slack: {
-              ...slack,
-              apiUrl,
-            },
-          },
-        };
-      },
-      createRuntimeEnvPatch() {
-        const { SLACK_API_URL: _apiUrl, ...rest } = adapter.createChannelDriverSmokeEnv({});
-        return rest;
-      },
+      ...rest,
+      ...(slackApiUrl ? { OPENCLAW_SLACK_API_URL: slackApiUrl } : {}),
     };
   },
-};
+});

@@ -1463,7 +1463,6 @@ Primary reference: [Configuration reference - Slack](/gateway/config-channels#sl
 - delivery: `textChunkLimit`, `chunkMode`, `mediaMaxMb`, `streaming`, `streaming.nativeTransport`, `streaming.preview.toolProgress`
 - unfurls: `unfurlLinks` (default: `false`), `unfurlMedia` for `chat.postMessage` link/media preview control; set `unfurlLinks: true` to opt back into link previews
 - ops/features: `configWrites`, `commands.native`, `slashCommand.*`, `actions.*`, `userToken`, `userTokenReadOnly`
-- test/local endpoints: `apiUrl` overrides the Slack Web API root for Slack-compatible local or provider test endpoints
 
 </Accordion>
 

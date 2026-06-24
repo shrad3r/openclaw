@@ -45,8 +45,12 @@ function resolveSlackProxyAgent(targetUrl: string): Agent | undefined {
 }
 
 function resolveSlackApiUrl(override?: string): string | undefined {
-  const value = override?.trim();
-  return value || undefined;
+  const explicit = override?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  const envValue = process.env.OPENCLAW_SLACK_API_URL?.trim();
+  return envValue || undefined;
 }
 
 export function createSlackApiUrlClientOptions(apiUrl?: string | null): SlackApiUrlClientOptions {

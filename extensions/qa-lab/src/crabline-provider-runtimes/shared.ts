@@ -1,16 +1,33 @@
-// Qa Lab plugin module implements shared Crabline provider runtime helpers.
-import type { QaCrablineProviderRuntimeSetup, QaStartedOpenClawCrablineAdapter } from "./types.js";
+// Qa Lab plugin module implements shared fake-provider runtime helpers.
+import type {
+  QaCrablineProviderChannel,
+  QaCrablineProviderRuntime,
+  QaCrablineProviderRuntimeSetup,
+  QaStartedOpenClawCrablineAdapter,
+} from "./types.js";
 
-export function createDefaultCrablineProviderRuntimeSetup(
+type RuntimeEnvMapper = (env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv;
+
+export function createDefaultFakeProviderRuntimeSetup(
   adapter: QaStartedOpenClawCrablineAdapter,
+  options?: { mapRuntimeEnv?: RuntimeEnvMapper },
 ): QaCrablineProviderRuntimeSetup {
   return {
     augmentGatewayConfig: (config) => config,
-    createRuntimeEnvPatch: () => adapter.createChannelDriverSmokeEnv({}),
+    createRuntimeEnvPatch: () =>
+      options?.mapRuntimeEnv?.(adapter.createChannelDriverSmokeEnv({})) ??
+      adapter.createChannelDriverSmokeEnv({}),
   };
 }
 
-export function appendNodeOption(raw: string | undefined, option: string) {
-  const parts = (raw ?? "").split(/\s+/u).filter(Boolean);
-  return parts.includes(option) ? parts.join(" ") : [...parts, option].join(" ");
+export function createDefaultFakeProviderRuntime(
+  channel: QaCrablineProviderChannel,
+  options?: { mapRuntimeEnv?: RuntimeEnvMapper },
+): QaCrablineProviderRuntime {
+  return {
+    channel,
+    async setup({ adapter }) {
+      return createDefaultFakeProviderRuntimeSetup(adapter, options);
+    },
+  };
 }

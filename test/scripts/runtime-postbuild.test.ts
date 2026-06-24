@@ -41,6 +41,7 @@ describe("runtime postbuild static assets", () => {
       "dist/extensions/acpx/mcp-proxy.mjs",
       "dist/extensions/diffs-language-pack/assets/viewer-runtime.js",
       "dist/extensions/diffs/assets/viewer-runtime.js",
+      "dist/extensions/qa-lab/src/crabline-provider-runtimes/whatsapp-socket-factory.mjs",
     ]);
   });
 
@@ -61,7 +62,11 @@ describe("runtime postbuild static assets", () => {
       "dist/extensions/acpx/mcp-proxy.mjs",
       "dist/extensions/diffs-language-pack/assets/viewer-runtime.js",
       "dist/extensions/diffs/assets/viewer-runtime.js",
+      "dist/extensions/qa-lab/src/crabline-provider-runtimes/whatsapp-socket-factory.mjs",
     ]);
+    expect(payload.sources).toContain(
+      "extensions/qa-lab/src/crabline-provider-runtimes/whatsapp-socket-factory.mjs",
+    );
     expect(payload.sources).toContain("extensions/diffs-language-pack/assets/viewer-runtime.js");
     expect(payload.sources).toContain("extensions/diffs/assets/viewer-runtime.js");
   });

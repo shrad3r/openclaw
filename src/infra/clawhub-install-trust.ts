@@ -776,6 +776,23 @@ function readOptionalNumberField(value: unknown, field: string): number | undefi
   return typeof raw === "number" && Number.isFinite(raw) ? raw : undefined;
 }
 
+function mapSkillVerificationSecurityForVerdict(
+  verification: ClawHubSkillVerificationResponse,
+): unknown {
+  const security = readObject(verification.security);
+  if (!security || Object.hasOwn(security, "passed")) {
+    return verification.security;
+  }
+  const status =
+    normalizeOptionalString(security.status) ?? normalizeOptionalString(security.rawStatus);
+  if (!status || !verification.ok || normalizeClawHubTrustToken(verification.decision) !== "pass") {
+    return verification.security;
+  }
+  // The owner-qualified fallback uses the older verify endpoint, whose pass
+  // decision plus concrete status predates the batched verdict `passed` flag.
+  return { ...security, passed: true };
+}
+
 function isOwnerQualifiedSkillNotFoundVerdict(item: ClawHubSkillSecurityVerdictItem): boolean {
   return item.error?.code === "skill_not_found";
 }
@@ -821,7 +838,7 @@ function mapSkillVerificationToSecurityVerdictItem(params: {
           securityAuditUrl: `${pageUrl}/security-audit?version=${encodeURIComponent(params.version)}`,
         }
       : {}),
-    security: params.verification.security,
+    security: mapSkillVerificationSecurityForVerdict(params.verification),
   };
 }
 

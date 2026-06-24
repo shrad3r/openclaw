@@ -736,7 +736,7 @@ describe("skills-clawhub", () => {
       card: { available: true, sha256: "card-sha" },
       artifact: { sourceFingerprint: "source-fp" },
       provenance: { source: "unavailable" },
-      security: { status: "clean", passed: true },
+      security: { status: "clean" },
       signature: { status: "unsigned" },
     });
     installPackageDirMock.mockImplementationOnce(async (params: { targetDir: string }) => {

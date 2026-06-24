@@ -25,6 +25,32 @@ import {
 } from "./plugins-cli-test-helpers.js";
 
 const ORIGINAL_OPENCLAW_NIX_MODE = process.env.OPENCLAW_NIX_MODE;
+const ORIGINAL_STDIN_TTY = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
+const ORIGINAL_STDOUT_TTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+
+function setTty(value: boolean): void {
+  Object.defineProperty(process.stdin, "isTTY", {
+    value,
+    configurable: true,
+  });
+  Object.defineProperty(process.stdout, "isTTY", {
+    value,
+    configurable: true,
+  });
+}
+
+function restoreTty(): void {
+  if (ORIGINAL_STDIN_TTY) {
+    Object.defineProperty(process.stdin, "isTTY", ORIGINAL_STDIN_TTY);
+  } else {
+    Reflect.deleteProperty(process.stdin, "isTTY");
+  }
+  if (ORIGINAL_STDOUT_TTY) {
+    Object.defineProperty(process.stdout, "isTTY", ORIGINAL_STDOUT_TTY);
+  } else {
+    Reflect.deleteProperty(process.stdout, "isTTY");
+  }
+}
 
 function createTrackedPluginConfig(params: {
   pluginId: string;
@@ -125,6 +151,7 @@ describe("plugins cli update", () => {
   });
 
   afterEach(() => {
+    restoreTty();
     if (ORIGINAL_OPENCLAW_NIX_MODE === undefined) {
       delete process.env.OPENCLAW_NIX_MODE;
     } else {
@@ -1008,6 +1035,28 @@ describe("plugins cli update", () => {
         acknowledgeClawHubRisk: true,
       }),
     );
+  });
+
+  it("does not pass an interactive ClawHub risk prompt to dry-run plugin updates", async () => {
+    setTty(true);
+    const config = createTrackedPluginConfig({
+      pluginId: "openclaw-codex-app-server",
+      spec: "clawhub:openclaw-codex-app-server",
+    });
+    loadConfig.mockReturnValue(config);
+    setInstalledPluginIndexInstallRecords(config.plugins?.installs ?? {});
+    updateNpmInstalledPlugins.mockResolvedValue({
+      config,
+      changed: false,
+      outcomes: [],
+    });
+
+    await runPluginsCommand(["plugins", "update", "openclaw-codex-app-server", "--dry-run"]);
+
+    const updateParams = expectSingleCallParams(updateNpmInstalledPlugins);
+    expect(updateParams.dryRun).toBe(true);
+    expect(updateParams.acknowledgeClawHubRisk).not.toBe(true);
+    expect(updateParams.onClawHubRisk).toBeUndefined();
   });
 
   it("writes updated config when updater reports changes", async () => {

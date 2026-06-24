@@ -66,6 +66,18 @@ describe("resolveClawHubRiskAcknowledgementCliOptions", () => {
     expect(options.onClawHubRisk).toBeUndefined();
   });
 
+  it("does not create a prompt handler when prompting is disabled", () => {
+    setTty(true);
+
+    const options = resolveClawHubRiskAcknowledgementCliOptions({
+      action: "updating",
+      allowPrompt: false,
+    });
+
+    expect(options.acknowledgeClawHubRisk).toBeUndefined();
+    expect(options.onClawHubRisk).toBeUndefined();
+  });
+
   it("sanitizes ClawHub package labels before prompting", async () => {
     promptTextMock.mockResolvedValueOnce("demo\\npkg");
     setTty(true);

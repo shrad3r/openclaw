@@ -13,13 +13,14 @@ function canPromptForClawHubRisk(): boolean {
 export function resolveClawHubRiskAcknowledgementCliOptions(params: {
   acknowledgeClawHubRisk?: boolean;
   action: "installing" | "updating";
+  allowPrompt?: boolean;
 }): ClawHubRiskAcknowledgementCliOptions & {
   onClawHubRisk?: (request: ClawHubRiskAcknowledgementRequest) => Promise<boolean>;
 } {
   return {
     acknowledgeClawHubRisk: params.acknowledgeClawHubRisk,
     onClawHubRisk:
-      params.acknowledgeClawHubRisk || !canPromptForClawHubRisk()
+      params.acknowledgeClawHubRisk || params.allowPrompt === false || !canPromptForClawHubRisk()
         ? undefined
         : async (request) => {
             const packageName = sanitizeTerminalText(request.packageName);

@@ -270,6 +270,7 @@ export async function runPluginUpdateCommand(params: {
           ...resolveClawHubRiskAcknowledgementCliOptions({
             acknowledgeClawHubRisk: params.opts.acknowledgeClawHubRisk,
             action: "updating",
+            allowPrompt: !params.opts.dryRun,
           }),
           logger,
           onIntegrityDrift: async (drift) => {

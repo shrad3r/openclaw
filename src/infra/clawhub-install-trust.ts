@@ -634,6 +634,12 @@ function readSkillVerdictSecurityPassed(
   return typeof passed === "boolean" ? passed : undefined;
 }
 
+function hasUsablePassingSkillVerdictSecurity(item: ClawHubSkillSecurityVerdictItem): boolean {
+  return (
+    Boolean(readSkillVerdictSecurityStatus(item)) && readSkillVerdictSecurityPassed(item) === true
+  );
+}
+
 function hasSkillVerdictSecurityError(item: ClawHubSkillSecurityVerdictItem): boolean {
   return Boolean(item.error?.code || item.error?.message || item.version === null);
 }
@@ -694,8 +700,13 @@ function mapSkillSecurityVerdictToPackageSecurity(params: {
       `ClawHub skill trust check for "${formatClawHubReleaseLabel(params.packageName, params.version)}" did not return a usable security verdict${reason}.`,
     );
   }
-
   const decision = normalizeClawHubTrustToken(params.item.decision);
+  if (params.item.ok && decision === "pass" && !hasUsablePassingSkillVerdictSecurity(params.item)) {
+    throw new Error(
+      `ClawHub skill trust check for "${formatClawHubReleaseLabel(params.packageName, params.version)}" did not return a usable security verdict.`,
+    );
+  }
+
   const securityStatus = normalizeClawHubTrustToken(readSkillVerdictSecurityStatus(params.item));
   const securityPassed = readSkillVerdictSecurityPassed(params.item);
   const reasons = params.item.reasons

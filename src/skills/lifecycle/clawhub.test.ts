@@ -508,6 +508,47 @@ describe("skills-clawhub", () => {
     expect(downloadClawHubSkillArchiveMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      name: "omitted security",
+      verdict: {},
+    },
+    {
+      name: "null security",
+      verdict: { security: null },
+    },
+  ])("fails closed when a passing skill verdict has $name", async ({ verdict }) => {
+    fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({
+      schema: "clawhub.skill.security-verdicts.v1",
+      items: [
+        {
+          ok: true,
+          decision: "pass",
+          reasons: [],
+          requestedSlug: "agentreceipt",
+          requestedVersion: "1.0.0",
+          slug: "agentreceipt",
+          version: "1.0.0",
+          ...verdict,
+        },
+      ],
+    });
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected unusable skill trust verdict failure");
+    }
+    expect(result.code).toBe("clawhub_security_unavailable");
+    expect(result.error).toContain("did not return a usable security verdict");
+    expect(downloadClawHubSkillArchiveUrlMock).not.toHaveBeenCalled();
+    expect(downloadClawHubSkillArchiveMock).not.toHaveBeenCalled();
+  });
+
   it("blocks ClawHub skill installs when moderation marks the release as malware-blocked", async () => {
     const warnings: string[] = [];
     fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({

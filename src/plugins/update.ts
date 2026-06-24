@@ -222,7 +222,7 @@ function shouldSkipClawHubTrustFailureForExistingInstall(params: {
   currentVersion: string | undefined;
 }): boolean {
   if (isClawHubRiskAcknowledgementRequired(params.result)) {
-    return true;
+    return Boolean(params.currentVersion);
   }
   if (isClawHubSecurityUnavailable(params.result)) {
     return Boolean(params.currentVersion);

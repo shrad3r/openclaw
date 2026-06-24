@@ -2543,6 +2543,64 @@ describe("updateNpmInstalledPlugins", () => {
     ]);
   });
 
+  it("does not skip a risk-gated ClawHub update when the installed package is missing", async () => {
+    installPluginFromClawHubMock.mockResolvedValue({
+      ok: false,
+      code: "clawhub_risk_acknowledgement_required",
+      error:
+        "Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning.",
+      warning:
+        "╭─ WARNING - ClawHub found security risks in this release ─╮\n│ • Finding: suspicious payload strings │\n╰───────────────────────────────────────────────────────────────────────╯",
+    });
+    const installPath = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-plugin-update-missing-"));
+    tempDirs.push(installPath);
+    const config = createClawHubInstallConfig({
+      pluginId: "demo",
+      installPath,
+      clawhubUrl: "https://clawhub.ai",
+      clawhubPackage: "demo",
+      clawhubFamily: "code-plugin",
+      clawhubChannel: "official",
+    });
+    config.plugins = {
+      ...config.plugins,
+      entries: {
+        demo: {
+          enabled: true,
+          config: { preserved: true },
+        },
+      },
+      allow: ["demo"],
+      slots: {
+        memory: "demo",
+      },
+    };
+
+    const result = await updateNpmInstalledPlugins({
+      config,
+      pluginIds: ["demo"],
+      disableOnFailure: true,
+    });
+
+    expect(clawHubInstallCall()?.spec).toBe("clawhub:demo");
+    const message =
+      'Disabled "demo" after plugin update failure; OpenClaw will continue without it. Failed to update demo: Update cancelled; rerun with --acknowledge-clawhub-risk to continue after reviewing the warning. (ClawHub clawhub:demo).';
+    expect(result.changed).toBe(true);
+    expect(result.config.plugins?.entries?.demo).toEqual({
+      enabled: false,
+      config: { preserved: true },
+    });
+    expect(result.config.plugins?.allow).toBeUndefined();
+    expect(result.config.plugins?.slots?.memory).toBe("memory-core");
+    expect(result.outcomes).toEqual([
+      {
+        pluginId: "demo",
+        status: "skipped",
+        message,
+      },
+    ]);
+  });
+
   it("keeps an existing ClawHub plugin enabled when a newer target release is blocked", async () => {
     installPluginFromClawHubMock.mockResolvedValue({
       ok: false,

@@ -44,22 +44,25 @@ function resolveSlackProxyAgent(targetUrl: string): Agent | undefined {
   }
 }
 
-function resolveSlackApiUrl(override?: string): string | undefined {
-  const explicit = override?.trim();
-  if (explicit) {
-    return explicit;
-  }
+function resolveSlackApiUrl(): string | undefined {
   const envValue = process.env.OPENCLAW_SLACK_API_URL?.trim();
   return envValue || undefined;
 }
 
-export function createSlackApiUrlClientOptions(apiUrl?: string | null): SlackApiUrlClientOptions {
-  const slackApiUrl = resolveSlackApiUrl(apiUrl ?? undefined);
+function resolveSlackApiUrlFromOptions(
+  options: Pick<WebClientOptions, "slackApiUrl">,
+): string | undefined {
+  const explicit = options.slackApiUrl?.trim();
+  return explicit || resolveSlackApiUrl();
+}
+
+export function createSlackApiUrlClientOptions(): SlackApiUrlClientOptions {
+  const slackApiUrl = resolveSlackApiUrl();
   return slackApiUrl ? { slackApiUrl } : {};
 }
 
 export function resolveSlackWebClientOptions(options: WebClientOptions = {}): WebClientOptions {
-  const slackApiUrl = resolveSlackApiUrl(options.slackApiUrl);
+  const slackApiUrl = resolveSlackApiUrlFromOptions(options);
   const proxyTargetUrl = slackApiUrl ?? "https://slack.com/";
   return {
     ...options,
@@ -70,7 +73,7 @@ export function resolveSlackWebClientOptions(options: WebClientOptions = {}): We
 }
 
 export function resolveSlackWriteClientOptions(options: WebClientOptions = {}): WebClientOptions {
-  const slackApiUrl = resolveSlackApiUrl(options.slackApiUrl);
+  const slackApiUrl = resolveSlackApiUrlFromOptions(options);
   const proxyTargetUrl = slackApiUrl ?? "https://slack.com/";
   return {
     ...options,

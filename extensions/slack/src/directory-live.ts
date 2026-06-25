@@ -54,9 +54,7 @@ type SlackAuthTestResponse = {
 function createSlackDirectoryClient(params: DirectoryConfigParams) {
   const account = resolveSlackAccount({ cfg: params.cfg, accountId: params.accountId });
   const token = account.userToken ?? account.botToken?.trim();
-  return token
-    ? createSlackWebClient(token, createSlackApiUrlClientOptions(account.config.apiUrl))
-    : null;
+  return token ? createSlackWebClient(token, createSlackApiUrlClientOptions()) : null;
 }
 
 function normalizeQuery(value?: string | null): string {

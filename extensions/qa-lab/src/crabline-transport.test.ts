@@ -1,7 +1,6 @@
 // Qa Lab tests cover Crabline fake-provider transport integration behavior.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 import {
   CRABLINE_FAKE_PROVIDER_CHANNELS,
   OPENCLAW_CRABLINE_MANIFEST_PATH,
@@ -29,17 +28,6 @@ function createSelection(
 
 function supportsCrablineFakeProvider(channel: QaCrablineProviderChannel) {
   return (CRABLINE_FAKE_PROVIDER_CHANNELS as readonly string[]).includes(channel);
-}
-
-async function waitForLength<T>(items: T[], length: number): Promise<T[]> {
-  const deadline = Date.now() + 1_000;
-  while (Date.now() < deadline) {
-    if (items.length >= length) {
-      return items;
-    }
-    await sleep(20);
-  }
-  throw new Error(`Timed out waiting for ${length} items; saw ${items.length}.`);
 }
 
 describe("crabline transport", () => {
@@ -158,20 +146,18 @@ describe("crabline transport", () => {
           });
           const runtimeEnvPatch = transport.createRuntimeEnvPatch?.() ?? {};
           expect(runtimeEnvPatch).toMatchObject({
-            OPENCLAW_WHATSAPP_SOCKET_FACTORY_MODULE: expect.stringContaining(
-              "whatsapp-socket-factory.mjs",
-            ),
-            OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN: "crabline-whatsapp-access-token",
-            OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCOUNT_ID: "default",
-            OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT: expect.stringMatching(
+            CRABLINE_WHATSAPP_ACCESS_TOKEN: "crabline-whatsapp-access-token",
+            CRABLINE_WHATSAPP_API_ROOT: expect.stringMatching(
               /^http:\/\/127\.0\.0\.1:\d+\/crabline\/whatsapp$/u,
             ),
-            OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH: expect.stringMatching(
+            CRABLINE_WHATSAPP_RECORDER_PATH: expect.stringMatching(
               /whatsapp-fake-provider\.jsonl$/u,
             ),
-            OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID: "15550000000@s.whatsapp.net",
+            CRABLINE_WHATSAPP_SELF_JID: "15550000000@s.whatsapp.net",
+            OPENCLAW_WHATSAPP_SOCKET_FACTORY_MODULE: "@openclaw/crabline/whatsapp-socket-factory",
           });
           expect(runtimeEnvPatch).not.toHaveProperty("CRABLINE_WHATSAPP_ADMIN_TOKEN");
+          expect(runtimeEnvPatch).not.toHaveProperty("OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT");
           expect(runtimeEnvPatch).not.toHaveProperty("NODE_OPTIONS");
           await expect(
             fs.readFile(
@@ -179,18 +165,6 @@ describe("crabline transport", () => {
               "utf8",
             ),
           ).resolves.toContain("15550000000@s.whatsapp.net");
-          await expect(
-            fs.readFile(
-              path.join(outputDir, "artifacts", "crabline", "whatsapp-socket-factory.mjs"),
-              "utf8",
-            ),
-          ).resolves.toContain("createWhatsAppBaileysMockSocket");
-          await expect(
-            fs.readFile(
-              path.join(outputDir, "artifacts", "crabline", "whatsapp-socket-factory.mjs"),
-              "utf8",
-            ),
-          ).resolves.toContain("createWhatsAppSocket");
 
           const manifest = JSON.parse(
             await fs.readFile(path.join(outputDir, OPENCLAW_CRABLINE_MANIFEST_PATH), "utf8"),
@@ -200,104 +174,6 @@ describe("crabline transport", () => {
           expect(manifest.provider).toBe("whatsapp");
         } finally {
           await transport.cleanup?.();
-        }
-      });
-    },
-  );
-
-  it.runIf(supportsCrablineFakeProvider("whatsapp"))(
-    "does not replay old WhatsApp recorder inbound lines across socket factories",
-    async () => {
-      await withTempDir("qa-crabline-whatsapp-socket-", async (outputDir) => {
-        const recorderPath = path.join(outputDir, "whatsapp.jsonl");
-        const previousEnv = {
-          accessToken: process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN,
-          apiRoot: process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT,
-          recorderPath: process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH,
-          selfJid: process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID,
-        };
-        process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN = "token";
-        process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT =
-          "http://127.0.0.1:1/crabline/whatsapp";
-        process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH = recorderPath;
-        process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID = "15550000000@s.whatsapp.net";
-
-        const { createWhatsAppSocket } =
-          (await import("./crabline-provider-runtimes/whatsapp-socket-factory.mjs")) as {
-            createWhatsAppSocket: (
-              printQr: boolean,
-              verbose: boolean,
-              options?: Record<string, unknown>,
-            ) => Promise<{
-              end: () => Promise<void>;
-              ev: {
-                on(event: string, handler: (payload: unknown) => void): void;
-              };
-            }>;
-          };
-
-        try {
-          const firstSocket = await createWhatsAppSocket(false, false);
-          const firstMessages: unknown[] = [];
-          firstSocket.ev.on("messages.upsert", (payload) => firstMessages.push(payload));
-          await fs.appendFile(
-            recorderPath,
-            `${JSON.stringify({
-              body: {
-                chatJid: "15551110000@s.whatsapp.net",
-                senderJid: "15551110000@s.whatsapp.net",
-                text: "first",
-              },
-              path: "/crabline/whatsapp/inbound",
-              type: "admin",
-            })}\n`,
-            "utf8",
-          );
-          await expect(waitForLength(firstMessages, 1)).resolves.toHaveLength(1);
-          await firstSocket.end();
-
-          const secondSocket = await createWhatsAppSocket(false, false);
-          const secondMessages: unknown[] = [];
-          secondSocket.ev.on("messages.upsert", (payload) => secondMessages.push(payload));
-          await sleep(150);
-          expect(secondMessages).toHaveLength(0);
-
-          await fs.appendFile(
-            recorderPath,
-            `${JSON.stringify({
-              body: {
-                chatJid: "15552220000@s.whatsapp.net",
-                senderJid: "15552220000@s.whatsapp.net",
-                text: "second",
-              },
-              path: "/crabline/whatsapp/inbound",
-              type: "admin",
-            })}\n`,
-            "utf8",
-          );
-          await expect(waitForLength(secondMessages, 1)).resolves.toHaveLength(1);
-          await secondSocket.end();
-        } finally {
-          if (previousEnv.accessToken === undefined) {
-            delete process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN;
-          } else {
-            process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_ACCESS_TOKEN = previousEnv.accessToken;
-          }
-          if (previousEnv.apiRoot === undefined) {
-            delete process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT;
-          } else {
-            process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_API_ROOT = previousEnv.apiRoot;
-          }
-          if (previousEnv.recorderPath === undefined) {
-            delete process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH;
-          } else {
-            process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_RECORDER_PATH = previousEnv.recorderPath;
-          }
-          if (previousEnv.selfJid === undefined) {
-            delete process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID;
-          } else {
-            process.env.OPENCLAW_WHATSAPP_FAKE_PROVIDER_SELF_JID = previousEnv.selfJid;
-          }
         }
       });
     },

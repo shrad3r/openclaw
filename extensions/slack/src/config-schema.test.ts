@@ -38,16 +38,19 @@ describe("slack config schema", () => {
     }
   });
 
-  it("accepts Slack Web API URL overrides per account for compatibility", () => {
+  it("rejects Slack Web API URL config overrides", () => {
     const res = SlackConfigSchema.safeParse({
       apiUrl: "http://127.0.0.1:49152/api/",
       accounts: { ops: { apiUrl: "http://127.0.0.1:49153/api/" } },
     });
 
-    expect(res.success).toBe(true);
-    if (res.success) {
-      expect(res.data.apiUrl).toBe("http://127.0.0.1:49152/api/");
-      expect(res.data.accounts?.ops?.apiUrl).toBe("http://127.0.0.1:49153/api/");
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(
+        res.error.issues.some(
+          (issue) => issue.code === "unrecognized_keys" && issue.keys.includes("apiUrl"),
+        ),
+      ).toBe(true);
     }
   });
 

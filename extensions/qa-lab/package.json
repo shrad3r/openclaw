@@ -16,7 +16,7 @@
     "@openclaw/plugin-sdk": "workspace:*",
     "@openclaw/slack": "workspace:*",
     "@openclaw/whatsapp": "workspace:*",
-    "@openclaw/crabline": "0.1.1",
+    "@openclaw/crabline": "0.1.2",
     "openclaw": "2026.5.28"
   },
   "peerDependencies": {
@@ -33,14 +33,6 @@
     ],
     "compat": {
       "pluginApi": ">=2026.6.10"
-    },
-    "build": {
-      "staticAssets": [
-        {
-          "source": "./src/crabline-provider-runtimes/whatsapp-socket-factory.mjs",
-          "output": "src/crabline-provider-runtimes/whatsapp-socket-factory.mjs"
-        }
-      ]
     }
   }
 }

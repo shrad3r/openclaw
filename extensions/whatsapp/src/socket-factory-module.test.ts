@@ -50,6 +50,12 @@ describe("loadWhatsAppSocketFactoryFromEnv", () => {
     );
   });
 
+  it("leaves scoped package subpath module specifiers intact", () => {
+    expect(resolveSocketFactoryModuleSpecifier("@openclaw/crabline/whatsapp-socket-factory")).toBe(
+      "@openclaw/crabline/whatsapp-socket-factory",
+    );
+  });
+
   it("loads the default export from a module URL", async () => {
     const modulePath = writeModule(
       "export default function createSocket() { return 'default'; }\n",

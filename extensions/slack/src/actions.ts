@@ -77,8 +77,8 @@ function resolveSlackActionClientOptions(opts: SlackActionClientOpts) {
     return createSlackApiUrlClientOptions();
   }
   const cfg = requireRuntimeConfig(opts.cfg, "Slack actions");
-  const account = resolveSlackAccount({ cfg, accountId: opts.accountId });
-  return createSlackApiUrlClientOptions(account.config.apiUrl);
+  resolveSlackAccount({ cfg, accountId: opts.accountId });
+  return createSlackApiUrlClientOptions();
 }
 
 function slackActionClientOptionArgs(

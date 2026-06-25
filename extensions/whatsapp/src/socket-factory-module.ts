@@ -21,6 +21,13 @@ function windowsAbsolutePathToFileUrl(value: string): string {
   return new URL(specifier).href;
 }
 
+function isBareModuleSpecifier(value: string): boolean {
+  if (value.startsWith("@")) {
+    return /^@[^/]+\/[^/]+(?:\/.*)?$/u.test(value);
+  }
+  return !value.startsWith(".") && !value.includes("/") && !value.includes("\\");
+}
+
 export function resolveSocketFactoryModuleSpecifier(value: string): string {
   if (path.isAbsolute(value)) {
     return pathToFileURL(value).href;
@@ -29,6 +36,9 @@ export function resolveSocketFactoryModuleSpecifier(value: string): string {
     return windowsAbsolutePathToFileUrl(value);
   }
   if (/^[a-z][a-z0-9+.-]*:/iu.test(value)) {
+    return value;
+  }
+  if (isBareModuleSpecifier(value)) {
     return value;
   }
   return pathToFileURL(path.resolve(value)).href;

@@ -162,8 +162,6 @@ export type SlackAccountConfig = {
   signingSecret?: SecretInput;
   /** Slack Events API webhook path (default: /slack/events). */
   webhookPath?: string;
-  /** Optional Slack Web API root for Slack-compatible local/provider test endpoints. */
-  apiUrl?: string;
   /** Optional provider capability tags used for agent/runtime guidance. */
   capabilities?: SlackCapabilitiesConfig;
   /** Slack-native exec approval delivery + approver authorization. */

@@ -269,6 +269,8 @@ export type ClawHubSkillDetail = {
     displayName: string;
     summary?: string;
     tags?: Record<string, string>;
+    channel?: ClawHubPackageChannel | string | null;
+    isOfficial?: boolean | null;
     createdAt: number;
     updatedAt: number;
   } | null;
@@ -285,6 +287,8 @@ export type ClawHubSkillDetail = {
     handle?: string | null;
     displayName?: string | null;
     image?: string | null;
+    channel?: ClawHubPackageChannel | string | null;
+    isOfficial?: boolean | null;
   } | null;
 };
 
@@ -292,15 +296,21 @@ export type ClawHubSkillInstallResolutionResponse =
   | {
       ok: true;
       slug: string;
+      channel?: ClawHubPackageChannel | string | null;
+      isOfficial?: boolean | null;
       installKind: "archive";
       archive: {
         version: string;
         downloadUrl: string;
+        channel?: ClawHubPackageChannel | string | null;
+        isOfficial?: boolean | null;
       };
     }
   | {
       ok: true;
       slug: string;
+      channel?: ClawHubPackageChannel | string | null;
+      isOfficial?: boolean | null;
       installKind: "github";
       /** Commit-pinned source approved by ClawHub's install resolver policy. */
       github: {

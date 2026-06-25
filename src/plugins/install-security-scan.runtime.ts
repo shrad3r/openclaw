@@ -829,6 +829,25 @@ function resolvePolicySource(params: {
   return { kind: "local-path", authority: "unknown", mutable: true, network: false };
 }
 
+function shouldBypassOpenClawInstallFriction(params: {
+  source?: InstallPolicySource;
+  trustedSourceLinkedOfficialInstall?: boolean;
+}): boolean {
+  if (params.trustedSourceLinkedOfficialInstall === true) {
+    return true;
+  }
+  const source = params.source;
+  if (!source || source.mutable) {
+    return false;
+  }
+  if (source.authority === "official") {
+    return source.kind === "clawhub" || source.kind === "git" || source.kind === "npm";
+  }
+  return (
+    source.authority === "openclaw" && (source.kind === "bundled" || source.kind === "managed")
+  );
+}
+
 async function runOperatorInstallPolicy(params: {
   config?: OpenClawConfig;
   logger: InstallScanLogger;
@@ -853,7 +872,16 @@ async function runOperatorInstallPolicy(params: {
     version?: string;
     extensions?: string[];
   };
+  trustedSourceLinkedOfficialInstall?: boolean;
 }): Promise<InstallSecurityScanResult | undefined> {
+  if (
+    shouldBypassOpenClawInstallFriction({
+      source: params.source,
+      trustedSourceLinkedOfficialInstall: params.trustedSourceLinkedOfficialInstall,
+    })
+  ) {
+    return undefined;
+  }
   const result = await runInstallPolicy({
     config: params.config,
     logger: params.logger,
@@ -897,6 +925,9 @@ export async function scanBundleInstallSourceRuntime(
     source?: InstallPolicySource;
   },
 ): Promise<InstallSecurityScanResult | undefined> {
+  if (shouldBypassOpenClawInstallFriction({ source: params.source })) {
+    return undefined;
+  }
   const dependencyBlocked = await scanPluginDependencyDenylist({
     logger: params.logger,
     packageDir: params.sourceDir,
@@ -966,8 +997,17 @@ export async function scanPackageInstallSourceRuntime(
     manifestId?: string;
     version?: string;
     source?: InstallPolicySource;
+    trustedSourceLinkedOfficialInstall?: boolean;
   },
 ): Promise<InstallSecurityScanResult | undefined> {
+  if (
+    shouldBypassOpenClawInstallFriction({
+      source: params.source,
+      trustedSourceLinkedOfficialInstall: params.trustedSourceLinkedOfficialInstall,
+    })
+  ) {
+    return undefined;
+  }
   const dependencyBlocked = await scanPluginDependencyDenylist({
     logger: params.logger,
     packageDir: params.packageDir,
@@ -1045,6 +1085,14 @@ export async function scanInstalledPackageDependencyTreeRuntime(params: {
   source?: InstallPolicySource;
   trustedSourceLinkedOfficialInstall?: boolean;
 }): Promise<InstallSecurityScanResult | undefined> {
+  if (
+    shouldBypassOpenClawInstallFriction({
+      source: params.source,
+      trustedSourceLinkedOfficialInstall: params.trustedSourceLinkedOfficialInstall,
+    })
+  ) {
+    return undefined;
+  }
   const scanRoots = await collectInstalledPackageScanRoots({
     ...(params.additionalPackageDirs
       ? { additionalPackageDirs: params.additionalPackageDirs }
@@ -1083,6 +1131,7 @@ export async function scanInstalledPackageDependencyTreeRuntime(params: {
       contentType: "dependency-tree",
       pluginId: params.pluginId,
     },
+    trustedSourceLinkedOfficialInstall: params.trustedSourceLinkedOfficialInstall,
   });
 }
 
@@ -1150,6 +1199,9 @@ export async function preflightPluginNpmInstallPolicyRuntime(params: {
   sourcePath: string;
   sourcePathKind: "file" | "directory";
 }): Promise<InstallSecurityScanResult | undefined> {
+  if (shouldBypassOpenClawInstallFriction({ source: params.source })) {
+    return undefined;
+  }
   const pluginId = params.pluginId ?? params.packageName;
   return await runOperatorInstallPolicy({
     config: params.config,
@@ -1211,6 +1263,9 @@ export async function evaluateSkillInstallPolicyRuntime(params: {
   skillName: string;
   sourceDir: string;
 }): Promise<InstallSecurityScanResult | undefined> {
+  if (shouldBypassOpenClawInstallFriction({ source: params.source })) {
+    return undefined;
+  }
   const policyResult = await runOperatorInstallPolicy({
     config: params.config,
     logger: params.logger,

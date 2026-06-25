@@ -195,6 +195,16 @@ function isTrustedSourceLinkedOfficialPackage(pkg: NonNullable<ClawHubPackageDet
   );
 }
 
+function isDefaultOfficialClawHubPackage(params: {
+  baseUrl?: string;
+  pkg: NonNullable<ClawHubPackageDetail["package"]>;
+}): boolean {
+  return (
+    isDefaultClawHubBaseUrl(params.baseUrl) &&
+    (params.pkg.channel === "official" || params.pkg.isOfficial)
+  );
+}
+
 function resolveClawHubClawPackArtifactSha256(
   clawpack: ClawHubPackageArtifactSummary | ClawHubPackageClawPackSummary | null | undefined,
 ): string | null {
@@ -1180,6 +1190,9 @@ export async function installPluginFromClawHub(
   }
   const expectedClawPackSha256 = resolveClawHubClawPackArtifactSha256(versionState.clawpack);
   const canonicalPackageName = detail.package?.name ?? parsed.name;
+  const officialClawHubPackage = detail.package
+    ? isDefaultOfficialClawHubPackage({ baseUrl: params.baseUrl, pkg: detail.package })
+    : false;
   logClawHubPackageSummary({
     detail,
     version: versionState.version,
@@ -1187,18 +1200,20 @@ export async function installPluginFromClawHub(
     baseUrl: params.baseUrl,
     logger: params.logger,
   });
-  const trustResult = await ensureClawHubPackageTrustAcknowledged({
-    subject: { kind: "plugin", packageName: canonicalPackageName },
-    version: versionState.version,
-    baseUrl: params.baseUrl,
-    token: params.token,
-    timeoutMs: params.timeoutMs,
-    acknowledgeClawHubRisk: params.acknowledgeClawHubRisk,
-    onClawHubRisk: params.onClawHubRisk,
-    logger: params.logger,
-    mode: params.mode,
-  });
-  if (!trustResult.ok) {
+  const trustResult = officialClawHubPackage
+    ? null
+    : await ensureClawHubPackageTrustAcknowledged({
+        subject: { kind: "plugin", packageName: canonicalPackageName },
+        version: versionState.version,
+        baseUrl: params.baseUrl,
+        token: params.token,
+        timeoutMs: params.timeoutMs,
+        acknowledgeClawHubRisk: params.acknowledgeClawHubRisk,
+        onClawHubRisk: params.onClawHubRisk,
+        logger: params.logger,
+        mode: params.mode,
+      });
+  if (trustResult && !trustResult.ok) {
     return trustResult;
   }
   if (!versionState.verification && !expectedClawPackSha256) {
@@ -1320,7 +1335,8 @@ export async function installPluginFromClawHub(
     const installResult = await installPluginFromArchive({
       archivePath: archive.archivePath,
       dangerouslyForceUnsafeInstall: params.dangerouslyForceUnsafeInstall,
-      trustedSourceLinkedOfficialInstall: isTrustedSourceLinkedOfficialPackage(detail.package!),
+      trustedSourceLinkedOfficialInstall:
+        officialClawHubPackage || isTrustedSourceLinkedOfficialPackage(detail.package!),
       config: params.config,
       logger: params.logger,
       mode: params.mode,
@@ -1331,7 +1347,12 @@ export async function installPluginFromClawHub(
       installPolicyRequest: {
         kind: "plugin-archive",
         requestedSpecifier: params.spec,
-        source: { kind: "clawhub", authority: clawhubAuthority, mutable: false, network: true },
+        source: {
+          kind: "clawhub",
+          authority: officialClawHubPackage ? "official" : clawhubAuthority,
+          mutable: false,
+          network: true,
+        },
       },
     });
     if (!installResult.ok) {
@@ -1378,7 +1399,7 @@ export async function installPluginFromClawHub(
         resolvedAt: new Date().toISOString(),
         ...clawpackFields,
         ...observedClawPackArtifactFields,
-        ...trustResult.trustInstallRecordFields,
+        ...(trustResult ? trustResult.trustInstallRecordFields : {}),
         ...(expectedTarballName && !archive.npmTarballName
           ? { npmTarballName: expectedTarballName }
           : {}),

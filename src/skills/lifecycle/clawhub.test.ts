@@ -335,6 +335,79 @@ describe("skills-clawhub", () => {
     ]);
   });
 
+  it("bypasses ClawHub trust checks for official skill install resolutions", async () => {
+    fetchClawHubSkillInstallResolutionMock.mockResolvedValueOnce({
+      ok: true,
+      slug: "agentreceipt",
+      channel: "official",
+      isOfficial: true,
+      installKind: "archive",
+      archive: {
+        version: "1.0.0",
+        downloadUrl: "https://clawhub.ai/api/v1/download?slug=agentreceipt&version=1.0.0",
+      },
+    });
+    fetchClawHubSkillSecurityVerdictsMock.mockRejectedValueOnce(new Error("should not be called"));
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+    });
+
+    expectInstalledSkill(result, {
+      slug: "agentreceipt",
+      version: "1.0.0",
+      targetDir: "/tmp/workspace/skills/agentreceipt",
+    });
+    expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
+    expect(installPolicyInput()).toMatchObject({
+      origin: { registry: "https://clawhub.ai" },
+      source: { kind: "clawhub", authority: "official", mutable: false, network: true },
+    });
+  });
+
+  it("bypasses ClawHub trust checks when skill detail has an official owner", async () => {
+    fetchClawHubSkillDetailMock.mockResolvedValueOnce({
+      skill: {
+        slug: "agentreceipt",
+        displayName: "AgentReceipt",
+        createdAt: 1,
+        updatedAt: 2,
+      },
+      owner: {
+        handle: "openclaw",
+        displayName: "OpenClaw",
+        channel: "official",
+        isOfficial: true,
+      },
+      latestVersion: {
+        version: "1.0.0",
+        createdAt: 3,
+      },
+    });
+    fetchClawHubSkillSecurityVerdictsMock.mockRejectedValueOnce(new Error("should not be called"));
+
+    const result = await installSkillFromClawHub({
+      workspaceDir: "/tmp/workspace",
+      slug: "agentreceipt",
+    });
+
+    expectInstalledSkill(result, {
+      slug: "agentreceipt",
+      version: "1.0.0",
+      targetDir: "/tmp/workspace/skills/agentreceipt",
+    });
+    expect(fetchClawHubSkillDetailMock).toHaveBeenCalledWith({
+      slug: "agentreceipt",
+      baseUrl: undefined,
+    });
+    expect(fetchClawHubSkillSecurityVerdictsMock).not.toHaveBeenCalled();
+    expect(installPolicyInput()).toMatchObject({
+      origin: { registry: "https://clawhub.ai" },
+      source: { kind: "clawhub", authority: "official", mutable: false, network: true },
+    });
+  });
+
   it("blocks ClawHub skill installs when release trust is malicious", async () => {
     const warnings: string[] = [];
     fetchClawHubSkillSecurityVerdictsMock.mockResolvedValueOnce({

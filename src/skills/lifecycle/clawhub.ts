@@ -244,6 +244,54 @@ type ClawHubInstallParams = {
   config?: OpenClawConfig;
 };
 
+type ClawHubOfficialFlagContainer = {
+  channel?: unknown;
+  isOfficial?: unknown;
+};
+
+function hasOfficialClawHubFlag(value: ClawHubOfficialFlagContainer | null | undefined): boolean {
+  return value?.channel === "official" || value?.isOfficial === true;
+}
+
+function isDefaultOfficialClawHubSkillSource(params: {
+  baseUrl?: string;
+  detail?: ClawHubSkillDetail;
+  resolution?: Extract<ClawHubSkillInstallResolutionResponse, { ok: true }>;
+}): boolean {
+  if (!isDefaultClawHubBaseUrl(params.baseUrl)) {
+    return false;
+  }
+  return (
+    hasOfficialClawHubFlag(params.detail?.skill) ||
+    hasOfficialClawHubFlag(params.detail?.owner) ||
+    hasOfficialClawHubFlag(params.resolution) ||
+    (params.resolution?.installKind === "archive" &&
+      hasOfficialClawHubFlag(params.resolution.archive))
+  );
+}
+
+async function fetchDefaultClawHubSkillDetailIfOfficial(params: {
+  baseUrl?: string;
+  slug: string;
+  ownerHandle?: string;
+}): Promise<ClawHubSkillDetail | undefined> {
+  if (!isDefaultClawHubBaseUrl(params.baseUrl)) {
+    return undefined;
+  }
+  try {
+    const detail = await fetchClawHubSkillDetail({
+      slug: params.slug,
+      ...(params.ownerHandle ? { ownerHandle: params.ownerHandle } : {}),
+      baseUrl: params.baseUrl,
+    });
+    return isDefaultOfficialClawHubSkillSource({ baseUrl: params.baseUrl, detail })
+      ? detail
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 type TrackedUpdateTarget =
   | {
       ok: true;
@@ -1110,7 +1158,7 @@ async function installArchiveResolution(params: {
   version: string;
   archivePath: string;
   registry: string;
-  authority: "openclaw" | "third-party";
+  authority: "official" | "openclaw" | "third-party";
   force?: boolean;
   logger?: Logger;
   config?: OpenClawConfig;
@@ -1157,6 +1205,7 @@ async function installGitHubResolution(params: {
   sourcePath: string;
   archivePath: string;
   registry: string;
+  authority: "official" | "third-party";
   repo: string;
   commit: string;
   force?: boolean;
@@ -1189,7 +1238,7 @@ async function installGitHubResolution(params: {
           },
           source: {
             kind: "git",
-            authority: "third-party",
+            authority: params.authority,
             mutable: false,
             network: true,
           },
@@ -1218,11 +1267,15 @@ function assertInstallResolutionAllowed(
 async function ensureClawHubSkillTrustAcknowledged(
   params: ClawHubInstallParams & {
     version: string;
+    skipClawHubTrustCheck?: boolean;
   },
 ): Promise<
   | { ok: true; warning?: string }
   | { ok: false; error: string; code?: ClawHubTrustErrorCode; warning?: string }
 > {
+  if (params.skipClawHubTrustCheck) {
+    return { ok: true };
+  }
   const result = await ensureClawHubPackageTrustAcknowledged({
     subject: {
       kind: "skill",
@@ -1265,6 +1318,7 @@ async function performClawHubSkillInstall(
     let latestResolution: Extract<ClawHubSkillInstallResolutionResponse, { ok: true }> | undefined;
     let install: Awaited<ReturnType<typeof installArchiveResolution>>;
     let trustWarning: string | undefined;
+    let officialClawHubSkill = false;
 
     let archive: ClawHubDownloadResult;
     if (params.version) {
@@ -1276,7 +1330,15 @@ async function performClawHubSkillInstall(
       });
       detail = resolved.detail;
       version = resolved.version;
-      const trust = await ensureClawHubSkillTrustAcknowledged({ ...params, version });
+      officialClawHubSkill = isDefaultOfficialClawHubSkillSource({
+        baseUrl: params.baseUrl,
+        detail,
+      });
+      const trust = await ensureClawHubSkillTrustAcknowledged({
+        ...params,
+        version,
+        skipClawHubTrustCheck: officialClawHubSkill,
+      });
       if (!trust.ok) {
         return { ...trust, version };
       }
@@ -1297,8 +1359,24 @@ async function performClawHubSkillInstall(
           ...(params.forceInstall ? { forceInstall: true } : {}),
         }),
       );
+      const resolutionOfficialClawHubSkill = isDefaultOfficialClawHubSkillSource({
+        baseUrl: params.baseUrl,
+        resolution: latestResolution,
+      });
+      detail = resolutionOfficialClawHubSkill
+        ? undefined
+        : await fetchDefaultClawHubSkillDetailIfOfficial({
+            baseUrl: params.baseUrl,
+            slug: params.slug,
+            ...(params.ownerHandle ? { ownerHandle: params.ownerHandle } : {}),
+          });
       if (latestResolution.installKind === "github") {
         version = latestResolution.github.commit;
+        officialClawHubSkill = isDefaultOfficialClawHubSkillSource({
+          baseUrl: params.baseUrl,
+          detail,
+          resolution: latestResolution,
+        });
         // GitHub-backed ClawHub skills are commit resolutions, not ClawHub skill
         // release versions; the install resolver owns their scan/force policy.
         params.logger?.info?.(`Downloading ${params.slug}@${version} from GitHub…`);
@@ -1308,7 +1386,16 @@ async function performClawHubSkillInstall(
         });
       } else {
         version = latestResolution.archive.version;
-        const trust = await ensureClawHubSkillTrustAcknowledged({ ...params, version });
+        officialClawHubSkill = isDefaultOfficialClawHubSkillSource({
+          baseUrl: params.baseUrl,
+          detail,
+          resolution: latestResolution,
+        });
+        const trust = await ensureClawHubSkillTrustAcknowledged({
+          ...params,
+          version,
+          skipClawHubTrustCheck: officialClawHubSkill,
+        });
         if (!trust.ok) {
           return { ...trust, version };
         }
@@ -1334,6 +1421,7 @@ async function performClawHubSkillInstall(
                 sourcePath: latestResolution.github.path,
                 archivePath: archive.archivePath,
                 registry,
+                authority: officialClawHubSkill ? "official" : "third-party",
                 repo: latestResolution.github.repo,
                 commit: latestResolution.github.commit,
                 force: params.force,
@@ -1347,7 +1435,7 @@ async function performClawHubSkillInstall(
                 version,
                 archivePath: archive.archivePath,
                 registry,
-                authority: clawhubAuthority,
+                authority: officialClawHubSkill ? "official" : clawhubAuthority,
                 force: params.force,
                 logger: params.logger,
                 config: params.config,
@@ -1360,7 +1448,7 @@ async function performClawHubSkillInstall(
           version,
           archivePath: archive.archivePath,
           registry,
-          authority: clawhubAuthority,
+          authority: officialClawHubSkill ? "official" : clawhubAuthority,
           force: params.force,
           logger: params.logger,
           config: params.config,

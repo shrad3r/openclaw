@@ -445,6 +445,7 @@ export async function persistPluginInstall(params: {
   enable?: boolean;
   invalidateRuntimeCache?: boolean;
   successMessage?: string;
+  suppressNonClawHubInstallWarning?: boolean;
   warningMessage?: string;
   runtime?: RuntimeEnv;
 }): Promise<OpenClawConfig> {
@@ -531,10 +532,12 @@ export async function persistPluginInstall(params: {
   if (params.warningMessage) {
     runtime.log(theme.warn(params.warningMessage));
   }
-  logNonClawHubInstallWarning({
-    install: params.install,
-    runtime,
-  });
+  if (!params.suppressNonClawHubInstallWarning) {
+    logNonClawHubInstallWarning({
+      install: params.install,
+      runtime,
+    });
+  }
   runtime.log(params.successMessage ?? `Installed plugin: ${params.pluginId}`);
   logShadowedNpmInstallWarning({
     config: next,

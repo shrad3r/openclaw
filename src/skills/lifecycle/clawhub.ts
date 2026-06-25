@@ -246,11 +246,12 @@ type ClawHubInstallParams = {
 
 type ClawHubOfficialFlagContainer = {
   channel?: unknown;
+  official?: unknown;
   isOfficial?: unknown;
 };
 
 function hasOfficialClawHubFlag(value: ClawHubOfficialFlagContainer | null | undefined): boolean {
-  return value?.channel === "official" || value?.isOfficial === true;
+  return value?.channel === "official" || value?.official === true || value?.isOfficial === true;
 }
 
 function isDefaultOfficialClawHubSkillSource(params: {

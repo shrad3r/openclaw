@@ -377,8 +377,7 @@ describe("skills-clawhub", () => {
       owner: {
         handle: "openclaw",
         displayName: "OpenClaw",
-        channel: "official",
-        isOfficial: true,
+        official: true,
       },
       latestVersion: {
         version: "1.0.0",

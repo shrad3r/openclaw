@@ -287,6 +287,7 @@ export type ClawHubSkillDetail = {
     handle?: string | null;
     displayName?: string | null;
     image?: string | null;
+    official?: boolean | null;
     channel?: ClawHubPackageChannel | string | null;
     isOfficial?: boolean | null;
   } | null;

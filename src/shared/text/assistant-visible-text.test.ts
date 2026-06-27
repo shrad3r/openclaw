@@ -524,6 +524,13 @@ describe("stripAssistantInternalScaffolding", () => {
       expectVisibleText("<｜begin▁of▁sentence｜>Hello world", "Hello world");
     });
 
+    it("normalizes SentencePiece LOW LINE space markers", () => {
+      expectVisibleText(
+        "Hello!\u2581How\u2581can\u2581I\u2581help\u2581you\u2581today?",
+        "Hello! How can I help you today?",
+      );
+    });
+
     it("strips special tokens mixed with normal text", () => {
       expectVisibleText(
         "Start <|tool_call_result_begin|>middle<|tool_call_result_end|> end",

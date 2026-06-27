@@ -3,6 +3,8 @@ import { findCodeRegions, isInsideCode } from "./code-regions.js";
 
 // Match both ASCII pipe <|...|> and full-width pipe <｜...｜> (U+FF5C) variants.
 const MODEL_SPECIAL_TOKEN_RE = /<[|｜][^|｜]*[|｜]>/g;
+// SentencePiece decoders sometimes leak U+2581 (LOW LINE) instead of ASCII space.
+const MODEL_WHITESPACE_MARKER_RE = /\u2581/g;
 
 function overlapsCodeRegion(
   start: number,
@@ -49,4 +51,13 @@ export function stripModelSpecialTokens(text: string): string {
   }
   out += text.slice(cursor);
   return out;
+}
+
+/** Normalize tokenizer space markers (for example SentencePiece ▁) to ASCII space. */
+export function normalizeModelWhitespaceMarkers(text: string): string {
+  if (!text || !MODEL_WHITESPACE_MARKER_RE.test(text)) {
+    return text;
+  }
+  MODEL_WHITESPACE_MARKER_RE.lastIndex = 0;
+  return text.replace(MODEL_WHITESPACE_MARKER_RE, " ");
 }

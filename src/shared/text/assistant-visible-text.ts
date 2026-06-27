@@ -1,7 +1,10 @@
 // Assistant visible text helpers strip hidden reasoning and control marker text.
 import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
 import { findCodeRegions, isInsideCode } from "./code-regions.js";
-import { stripModelSpecialTokens } from "./model-special-tokens.js";
+import {
+  normalizeModelWhitespaceMarkers,
+  stripModelSpecialTokens,
+} from "./model-special-tokens.js";
 import { stripPlainTextToolCallBlocks } from "./plain-text-tool-call-blocks.js";
 import {
   stripReasoningTagsFromText,
@@ -880,6 +883,7 @@ function applyAssistantVisibleTextStagePipeline(
       cleaned = stripMinimaxToolCallXml(cleaned);
     }
     cleaned = stripModelSpecialTokens(cleaned);
+    cleaned = normalizeModelWhitespaceMarkers(cleaned);
     cleaned = stripRelevantMemoriesTags(cleaned);
     cleaned = stripToolCallXmlTags(cleaned, {
       stripFunctionCallsXmlPayloads: options.stripFunctionCallsXmlPayloads,

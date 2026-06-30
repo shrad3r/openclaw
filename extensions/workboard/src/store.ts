@@ -203,6 +203,7 @@ export type WorkboardBlockInput = {
 export type WorkboardDispatchResult = {
   promoted: WorkboardCard[];
   reclaimed: WorkboardCard[];
+  reaped: WorkboardCard[];
   blocked: WorkboardCard[];
   orchestrated: WorkboardCard[];
   count: number;
@@ -2220,6 +2221,28 @@ function isActiveDependencyTarget(
   );
 }
 
+function resolveStaleClaimReapSummary(title: string): string {
+  const dashVerdict = title
+    .split(/\s[—-]\s/g)
+    .at(-1)
+    ?.trim();
+  if (dashVerdict && /^[A-Z0-9_ /-]+$/.test(dashVerdict)) {
+    return `Stale claim reaped. Verdict from title: ${dashVerdict}. stale_claim_reaped`;
+  }
+  const matched = title.match(
+    /\b(?:APPROVE(?:D)?|BLOCK(?:ED)?|CODE_PASS|HOLD|HOLD_PENDING_GATES|REQUEST_CHANGES|REJECT(?:ED)?|CONDITIONAL(?:_PASS)?)[A-Z0-9_ /-]*/,
+  );
+  const verdict = matched?.[0]?.trim();
+  return verdict
+    ? `Stale claim reaped. Verdict from title: ${verdict}. stale_claim_reaped`
+    : "Stale claim reaped. stale_claim_reaped";
+}
+
+function isStaleClaimActivity(claim: WorkboardClaim, now: number): boolean {
+  const lastActivityAt = claim.lastHeartbeatAt ?? claim.claimedAt ?? 0;
+  return now - lastActivityAt > CLAIM_RECLAIM_MS;
+}
+
 function closeRunningAttempts(
   attempts: WorkboardRunAttempt[] | undefined,
   now: number,
@@ -4108,6 +4131,7 @@ export class WorkboardStore {
     return await this.enqueueMutation(async () => {
       const promoted: WorkboardCard[] = [];
       const reclaimed: WorkboardCard[] = [];
+      const reaped: WorkboardCard[] = [];
       const blocked: WorkboardCard[] = [];
       const orchestrated: WorkboardCard[] = [];
       const orchestratedByBoard = new Map<string, number>();
@@ -4122,11 +4146,26 @@ export class WorkboardStore {
           Boolean(maxRuntimeSeconds && runtimeStartedAt) &&
           now - runtimeStartedAt! > secondsToDurationMs(maxRuntimeSeconds!);
         const claimExpired = Boolean(claim?.expiresAt && now - claim.expiresAt > CLAIM_RECLAIM_MS);
+        const heartbeatStale = Boolean(claim && isStaleClaimActivity(claim, now));
         const retriesExhausted = retryBudgetExhausted(latest);
-        if (latest.status === "running" && (timedOut || claimExpired)) {
-          const reason = timedOut
-            ? "Run exceeded the card max runtime."
-            : "Claim expired without a recent heartbeat.";
+        if (latest.status === "running" && claimExpired && heartbeatStale) {
+          // Reap abandoned workers as done so dispatch does not block/unblock flap on fleet monitors.
+          latest = await this.completeDirect(
+            latest.id,
+            {
+              summary: resolveStaleClaimReapSummary(latest.title),
+              proof: {
+                status: "passed",
+                label: "stale_claim_reaped",
+                command: "workboard_dispatch stale-claim reaper",
+                note: `Expired claim owner=${claim!.ownerId}; expiresAt=${claim!.expiresAt}; lastHeartbeatAt=${claim!.lastHeartbeatAt ?? claim!.claimedAt}`,
+              },
+            },
+            null,
+          );
+          reaped.push(latest);
+        } else if (latest.status === "running" && timedOut) {
+          const reason = "Run exceeded the card max runtime.";
           const execution =
             latest.execution?.status === "running"
               ? { ...latest.execution, status: "blocked" as const, updatedAt: now }
@@ -4202,9 +4241,11 @@ export class WorkboardStore {
       return {
         promoted,
         reclaimed,
+        reaped,
         blocked,
         orchestrated,
-        count: promoted.length + reclaimed.length + blocked.length + orchestrated.length,
+        count:
+          promoted.length + reclaimed.length + reaped.length + blocked.length + orchestrated.length,
       };
     });
   }

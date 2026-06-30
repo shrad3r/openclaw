@@ -1555,14 +1555,27 @@ describe("WorkboardStore", () => {
 
       expect(createdRunningTimed.startedAt).toBe(1_000);
       expect(result.count).toBe(4);
+      expect(result.reaped).toHaveLength(2);
+      expect(result.blocked).toHaveLength(2);
+      expect(result.reclaimed).toHaveLength(0);
       await expect(store.get(ready.id)).resolves.toMatchObject({
         updatedAt: readyUpdatedAt,
         metadata: { automation: { dispatchCount: 1, lastDispatchAt: 600_000 } },
         events: expect.arrayContaining([expect.objectContaining({ kind: "dispatch" })]),
       });
-      const blockedExpired = await store.get(expired.id);
-      expect(blockedExpired).toMatchObject({ status: "blocked" });
-      expect(blockedExpired?.metadata?.claim).toBeUndefined();
+      const reapedExpired = await store.get(expired.id);
+      expect(reapedExpired).toMatchObject({ status: "done" });
+      expect(reapedExpired?.metadata?.claim).toBeUndefined();
+      expect(reapedExpired?.metadata?.comments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            body: expect.stringContaining("stale_claim_reaped"),
+          }),
+        ]),
+      );
+      expect(reapedExpired?.metadata?.proof).toEqual(
+        expect.arrayContaining([expect.objectContaining({ label: "stale_claim_reaped" })]),
+      );
       await expect(store.get(timed.id)).resolves.toMatchObject({
         status: "blocked",
         execution: { status: "blocked" },
@@ -1570,13 +1583,11 @@ describe("WorkboardStore", () => {
           attempts: [expect.objectContaining({ status: "blocked", endedAt: 600_000 })],
         },
       });
-      const blockedClaimed = await store.get(claimedTimed.id);
-      expect(blockedClaimed).toMatchObject({ status: "blocked" });
-      expect(blockedClaimed?.metadata?.claim).toBeUndefined();
-      expect(blockedClaimed?.metadata?.notifications).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ message: "Run exceeded the card max runtime." }),
-        ]),
+      const reapedClaimed = await store.get(claimedTimed.id);
+      expect(reapedClaimed).toMatchObject({ status: "done" });
+      expect(reapedClaimed?.metadata?.claim).toBeUndefined();
+      expect(reapedClaimed?.metadata?.proof).toEqual(
+        expect.arrayContaining([expect.objectContaining({ label: "stale_claim_reaped" })]),
       );
       await expect(store.get(createdRunningTimed.id)).resolves.toMatchObject({
         status: "blocked",
@@ -1584,6 +1595,38 @@ describe("WorkboardStore", () => {
           notifications: expect.arrayContaining([
             expect.objectContaining({ message: "Run exceeded the card max runtime." }),
           ]),
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reaps stale running claims with completed proof instead of blocking them", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000);
+      const store = new WorkboardStore(createMemoryStore());
+      const card = await store.create({
+        title: "Improve offline accuracy — APPROVED",
+        status: "running",
+      });
+      await store.claim(card.id, { ownerId: "main", token: "token-1", ttlSeconds: 1 });
+
+      const result = await store.dispatch(10 * 60 * 1000);
+
+      expect(result.reaped).toEqual([expect.objectContaining({ id: card.id, status: "done" })]);
+      expect(result.blocked).toEqual([]);
+      await expect(store.get(card.id)).resolves.toMatchObject({
+        status: "done",
+        metadata: {
+          proof: [expect.objectContaining({ label: "stale_claim_reaped" })],
+          notifications: [
+            expect.objectContaining({
+              kind: "completed",
+              message: expect.stringContaining("APPROVED"),
+            }),
+          ],
         },
       });
     } finally {

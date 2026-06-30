@@ -130,7 +130,7 @@ export async function handleWorkboardCommand(params: {
     });
     return {
       text: [
-        `dispatch: started=${result.started.length} failures=${result.startFailures.length} promoted=${result.promoted.length} blocked=${result.blocked.length}`,
+        `dispatch: started=${result.started.length} failures=${result.startFailures.length} promoted=${result.promoted.length} reaped=${result.reaped.length} blocked=${result.blocked.length}`,
         ...result.started.map((run) => `started ${run.cardId.slice(0, 8)} run=${run.runId}`),
         ...result.startFailures.map(
           (failure) => `failed ${failure.cardId.slice(0, 8)} ${failure.error}`,

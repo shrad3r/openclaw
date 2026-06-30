@@ -978,7 +978,7 @@ export function createWorkboardTools(params: {
       name: "workboard_dispatch",
       label: "Workboard Dispatch",
       description:
-        "Run one Workboard dispatcher pass: promote unblocked cards, reclaim expired claims, and block timed-out runs.",
+        "Run one Workboard dispatcher pass: promote dependency-ready cards, reap stale running claims, reclaim expired claims, and block max-runtime timeouts.",
       parameters: Type.Object(
         {
           boardId: Type.Optional(Type.String({ description: "Optional board id filter." })),
@@ -995,6 +995,7 @@ export function createWorkboardTools(params: {
           ...result,
           promoted: result.promoted.map(redactClaimToken),
           reclaimed: result.reclaimed.map(redactClaimToken),
+          reaped: result.reaped.map(redactClaimToken),
           blocked: result.blocked.map(redactClaimToken),
           orchestrated: result.orchestrated.map(redactClaimToken),
         });

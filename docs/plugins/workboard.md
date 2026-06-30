@@ -172,13 +172,15 @@ and running cards that only have a loose session link.
 Dispatch is intentionally Gateway-local. It does not spawn arbitrary operating
 system processes; normal OpenClaw subagent sessions still own execution. The
 dispatch action promotes dependency-ready cards, records dispatch metadata on
-ready cards, blocks expired claims or timed-out runs, marks board-configured
-triage cards as orchestration candidates, then claims a small batch of ready
-cards and starts worker runs through the Gateway subagent runtime. Assigned
-cards use `agent:<id>:subagent:workboard-*` worker session keys; unassigned
-cards use unscoped `subagent:workboard-*` keys so the Gateway still resolves the
-configured default agent. Workers get bounded card context plus the claim token
-they need to heartbeat, complete, or block the card through the Workboard tools.
+ready cards, reaps stale running claims as done with `stale_claim_reaped` proof,
+blocks max-runtime timeouts, reclaims expired claims that still have recent
+activity, marks board-configured triage cards as orchestration candidates, then
+claims a small batch of ready cards and starts worker runs through the Gateway
+subagent runtime. Assigned cards use `agent:<id>:subagent:workboard-*` worker
+session keys; unassigned cards use unscoped `subagent:workboard-*` keys so the
+Gateway still resolves the configured default agent. Workers get bounded card
+context plus the claim token they need to heartbeat, complete, or block the
+card through the Workboard tools.
 
 ### Dispatch worker selection
 
@@ -190,7 +192,8 @@ work on the board.
 
 Archived cards, cards with active claims, and cards without `ready` status are
 not selected for worker starts. They can still be affected by the data side of
-dispatch when stale claims, dependency promotion, or timeout cleanup applies.
+dispatch when stale claims are reaped, dependency promotion, or max-runtime
+timeout blocking applies.
 
 ### Worker prompt and lifecycle
 
@@ -244,9 +247,9 @@ openclaw workboard dispatch
 
 `openclaw workboard dispatch` calls the running Gateway so worker starts use the
 same subagent runtime as the dashboard. If the Gateway is unavailable, it falls
-back to data-only dispatch so dependency promotion, stale-claim cleanup, and
-timeout blocking can still run. Auth, permission, and validation failures still
-surface as command errors, as do failures for explicit `--url` or `--token`
+back to data-only dispatch so dependency promotion, stale-claim reaping,
+claim reclaim, and max-runtime blocking can still run. Auth, permission, and
+validation failures still surface as command errors, as do failures for explicit `--url` or `--token`
 targets.
 
 The `/workboard` slash command supports the same compact operator path:

@@ -66,6 +66,7 @@ function redactDispatchResult(result: WorkboardDispatchResult): WorkboardDispatc
     ...result,
     promoted: result.promoted.map(redactClaimToken),
     reclaimed: result.reclaimed.map(redactClaimToken),
+    reaped: result.reaped.map(redactClaimToken),
     blocked: result.blocked.map(redactClaimToken),
     orchestrated: result.orchestrated.map(redactClaimToken),
   };
@@ -246,7 +247,7 @@ export function registerWorkboardCli(params: { program: Command; store: Workboar
         writeJson({ ...result, gatewayUnavailable: true });
       } else {
         writeLine(
-          `gateway unavailable; data dispatch only: promoted=${result.promoted.length} blocked=${result.blocked.length}`,
+          `gateway unavailable; data dispatch only: promoted=${result.promoted.length} reaped=${result.reaped.length} blocked=${result.blocked.length}`,
         );
       }
     }

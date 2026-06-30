@@ -1555,6 +1555,9 @@ describe("WorkboardStore", () => {
 
       expect(createdRunningTimed.startedAt).toBe(1_000);
       expect(result.count).toBe(4);
+      expect(result.reaped).toHaveLength(2);
+      expect(result.blocked).toHaveLength(2);
+      expect(result.reclaimed).toHaveLength(0);
       await expect(store.get(ready.id)).resolves.toMatchObject({
         updatedAt: readyUpdatedAt,
         metadata: { automation: { dispatchCount: 1, lastDispatchAt: 600_000 } },
@@ -1592,6 +1595,38 @@ describe("WorkboardStore", () => {
           notifications: expect.arrayContaining([
             expect.objectContaining({ message: "Run exceeded the card max runtime." }),
           ]),
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reaps stale running claims with completed proof instead of blocking them", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000);
+      const store = new WorkboardStore(createMemoryStore());
+      const card = await store.create({
+        title: "Improve offline accuracy — APPROVED",
+        status: "running",
+      });
+      await store.claim(card.id, { ownerId: "main", token: "token-1", ttlSeconds: 1 });
+
+      const result = await store.dispatch(10 * 60 * 1000);
+
+      expect(result.reaped).toEqual([expect.objectContaining({ id: card.id, status: "done" })]);
+      expect(result.blocked).toEqual([]);
+      await expect(store.get(card.id)).resolves.toMatchObject({
+        status: "done",
+        metadata: {
+          proof: [expect.objectContaining({ label: "stale_claim_reaped" })],
+          notifications: [
+            expect.objectContaining({
+              kind: "completed",
+              message: expect.stringContaining("APPROVED"),
+            }),
+          ],
         },
       });
     } finally {

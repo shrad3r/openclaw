@@ -400,6 +400,7 @@ export function registerWorkboardGatewayMethods(params: {
           ...result,
           promoted: result.promoted.map(redactClaimToken),
           reclaimed: result.reclaimed.map(redactClaimToken),
+          reaped: result.reaped.map(redactClaimToken),
           blocked: result.blocked.map(redactClaimToken),
           orchestrated: result.orchestrated.map(redactClaimToken),
         });

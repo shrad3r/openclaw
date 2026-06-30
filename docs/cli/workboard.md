@@ -112,13 +112,15 @@ configured default agent is preserved.
 The dispatch loop:
 
 1. Promotes dependency-ready children to `ready`.
-2. Blocks expired claims or timed-out worker runs.
-3. Records dispatch metadata on ready cards.
-4. Selects a small batch of unclaimed ready cards.
-5. Claims each selected card for the dispatcher or assigned agent.
-6. Starts a subagent worker run with bounded card context and the card claim
+2. Reaps stale running claims as `done` with `stale_claim_reaped` proof.
+3. Blocks max-runtime timeouts.
+4. Reclaims expired claims that still have recent activity.
+5. Records dispatch metadata on ready cards.
+6. Selects a small batch of unclaimed ready cards.
+7. Claims each selected card for the dispatcher or assigned agent.
+8. Starts a subagent worker run with bounded card context and the card claim
    token.
-7. Stores the worker run id, session key, task linkage when the Gateway task
+9. Stores the worker run id, session key, task linkage when the Gateway task
    ledger reports it, execution status, and worker log on the card.
 
 Selection is intentionally conservative. One dispatch starts at most three
@@ -134,9 +136,10 @@ card to the queue.
 If no explicit Gateway target is provided and the local Gateway is unavailable
 or does not expose the Workboard dispatch method yet, the CLI falls back to
 data-only dispatch against local Workboard state. Data-only dispatch can still
-promote dependencies, clean stale claims, and block timed-out runs, but it does
-not start workers. Auth, permission, validation failures, and failures for an
-explicit `--url` or `--token` target are reported directly.
+promote dependencies, reap stale claims, reclaim expired claims, and block
+max-runtime timeouts, but it does not start workers. Auth, permission, validation
+failures, and failures for an explicit `--url` or `--token` target are reported
+directly.
 
 Text output reports worker starts:
 
@@ -147,7 +150,7 @@ dispatch complete: started=2 failures=0
 Fallback output is explicit:
 
 ```text
-gateway unavailable; data dispatch only: promoted=1 blocked=0
+gateway unavailable; data dispatch only: promoted=1 reaped=0 blocked=0
 ```
 
 JSON output includes the dispatch result. Gateway-backed dispatch can include
@@ -155,7 +158,7 @@ JSON output includes the dispatch result. Gateway-backed dispatch can include
 `gatewayUnavailable: true`. Claim tokens are redacted from card JSON output.
 
 In the dashboard, the same dispatch result is shown as a short summary so an
-operator can see how many cards started, promoted, blocked, reclaimed, or
+operator can see how many cards started, promoted, reaped, blocked, reclaimed, or
 failed without opening card details.
 
 ## Slash Command Parity

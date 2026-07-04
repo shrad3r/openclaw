@@ -539,6 +539,24 @@ function tryExtractSmartQuotedToolCallArguments(
   };
 }
 
+function unwrapWrappedToolCallArguments(
+  args: Record<string, unknown>,
+  toolNameFromContext?: string,
+): { args: Record<string, unknown>; unwrapped: boolean } {
+  if (
+    typeof args.name === "string" &&
+    (!toolNameFromContext ||
+      args.name === toolNameFromContext ||
+      args.name.toLowerCase() === toolNameFromContext.toLowerCase())
+  ) {
+    const innerArgs = args.parameters ?? args.arguments;
+    if (innerArgs && typeof innerArgs === "object" && !Array.isArray(innerArgs)) {
+      return { args: innerArgs as Record<string, unknown>, unwrapped: true };
+    }
+  }
+  return { args, unwrapped: false };
+}
+
 function tryExtractUsableToolCallArguments(
   raw: string,
   toolNameFromContext?: string,
@@ -548,18 +566,34 @@ function tryExtractUsableToolCallArguments(
   }
   const parsedRaw = parseUsableObjectJson(raw);
   if (parsedRaw) {
+    const { args: argsToReturn, unwrapped } = unwrapWrappedToolCallArguments(
+      parsedRaw,
+      toolNameFromContext,
+    );
     return {
-      args: parsedRaw,
-      kind: "preserved",
+      args: argsToReturn,
+      kind: unwrapped ? "repaired" : "preserved",
       leadingPrefix: "",
       trailingSuffix: "",
     };
   }
 
-  return (
+  const extracted =
     tryExtractUsableToolCallArgumentsFromJson(raw) ??
-    tryExtractSmartQuotedToolCallArguments(raw, toolNameFromContext)
-  );
+    tryExtractSmartQuotedToolCallArguments(raw, toolNameFromContext);
+
+  if (extracted) {
+    const { args: argsToReturn, unwrapped } = unwrapWrappedToolCallArguments(
+      extracted.args,
+      toolNameFromContext,
+    );
+    if (unwrapped) {
+      extracted.args = argsToReturn;
+      extracted.kind = "repaired";
+    }
+  }
+
+  return extracted;
 }
 
 function readToolCallNameInMessage(message: unknown, contentIndex: number): string | undefined {

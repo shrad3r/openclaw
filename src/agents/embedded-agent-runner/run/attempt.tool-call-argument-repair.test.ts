@@ -278,6 +278,15 @@ describe("openai-completions malformed tool-call argument repair", () => {
     },
   );
 
+  it("unwraps tool call arguments accidentally wrapped in an envelope", async () => {
+    const result = await runToolCallRepairCase({
+      toolName: "read",
+      delta: '{"name":"read","parameters":{"path":"/tmp/a"}}',
+    });
+
+    expectAllToolCallArgs(result, { path: "/tmp/a" });
+  });
+
   it("repairs smart-quoted edit args with CJK, markdown, and inner smart quotes", async () => {
     const expectedContent =
       '更新 **草稿** with “smart”, “sure” and code "x"\nJSON-ish “alpha”, “path”: “ignored” snippet\nSee [“quoted”](https://example.test)\nconst re = /\\d+/;\n内部内容';

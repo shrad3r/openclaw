@@ -5687,12 +5687,6 @@ export async function runEmbeddedAttempt(
           promptError: promptError ? formatErrorMessage(promptError) : undefined,
         });
       }
-      await flushEmbeddedAttemptTrajectoryRecorder({
-        runId: params.runId,
-        sessionId: params.sessionId,
-        log,
-        trajectoryRecorder,
-      });
       // Always tear down the session (and release the lock) before we leave this attempt.
       //
       // BUGFIX: Wait for the agent to be truly idle before flushing pending tool results.
@@ -5703,13 +5697,6 @@ export async function runEmbeddedAttempt(
       // See: https://github.com/openclaw/openclaw/issues/8643
       let cleanupError: unknown;
       try {
-        clearToolSearchCatalog({
-          sessionId: params.sessionId,
-          sessionKey: sandboxSessionKey,
-          agentId: sessionAgentId,
-          runId: params.runId,
-          catalogRef: toolSearchCatalogRef,
-        });
         const cleanupAborted =
           Boolean(params.abortSignal?.aborted) ||
           aborted ||
@@ -5735,9 +5722,22 @@ export async function runEmbeddedAttempt(
           runId: params.runId,
           sessionId: params.sessionId,
         });
+        clearToolSearchCatalog({
+          sessionId: params.sessionId,
+          sessionKey: sandboxSessionKey,
+          agentId: sessionAgentId,
+          runId: params.runId,
+          catalogRef: toolSearchCatalogRef,
+        });
       } catch (err) {
         cleanupError = err;
       }
+      await flushEmbeddedAttemptTrajectoryRecorder({
+        runId: params.runId,
+        sessionId: params.sessionId,
+        log,
+        trajectoryRecorder,
+      });
       const synthesizedCleanupTakeoverError =
         !cleanupError && promptError && sessionLockController.hasSessionTakeover()
           ? new EmbeddedAttemptSessionTakeoverError(params.sessionFile)

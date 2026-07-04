@@ -1,5 +1,36 @@
 # AGENTS.MD
 
+<!-- desk-portable-context -->
+
+## Read order (desk agents — Cursor + Antigravity)
+
+1. AGENTS.md
+2. docs/DESK_CONTEXT.md
+3. README.md
+4. Fleet grep: TASK_REGISTRY.json → `openclaw`
+5. .agents/rules/ (Antigravity) · .cursor/rules/
+
+## Tool portability
+
+| Tool            | Project config                                 |
+| --------------- | ---------------------------------------------- |
+| **Antigravity** | This file + `.agents/rules/` (auto-discovered) |
+| **Cursor**      | This file + `.cursor/rules/`                   |
+| **Fleet SOT**   | `~/.openclaw/workspace/TASK_REGISTRY.json`     |
+
+Global desk policy: `~/.gemini/config/AGENTS.md` and `~/.cursor/rules/`.
+
+## Fleet bridge
+
+- **OpenClaw lane:** `henri` · boot `~/Agents/Henri/AGENTS.md`
+- **Deploy:** git push (MacBook) → Mini `git pull --ff-only`; OpenClaw policy via `deploy-desk-to-mini.sh`
+- **Policy:** `~/.openclaw/workspace/CURSOR_VS_FLEET.md`
+- **Repo path:** `/Users/jakeshrader/openclaw`
+
+_Last desk context sync: 2026-07-03_
+
+<!-- /desk-portable-context -->
+
 Telegraph style. Root rules only. Read scoped `AGENTS.md` before subtree work.
 Skills own workflows; root owns hard policy and routing.
 

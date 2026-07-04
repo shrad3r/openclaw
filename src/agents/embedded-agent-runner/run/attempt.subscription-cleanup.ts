@@ -90,11 +90,6 @@ export async function cleanupEmbeddedAttemptResources(params: {
 }): Promise<void> {
   let sessionLockReleaseError: unknown;
   try {
-    try {
-      params.removeToolResultContextGuard?.();
-    } catch {
-      /* best-effort */
-    }
     if (params.aborted && params.abortSettlePromise) {
       await waitForEmbeddedAbortSettle({
         promise: params.abortSettlePromise,
@@ -115,6 +110,11 @@ export async function cleanupEmbeddedAttemptResources(params: {
       } catch {
         /* best-effort */
       }
+    }
+    try {
+      params.removeToolResultContextGuard?.();
+    } catch {
+      /* best-effort */
     }
   } finally {
     try {

@@ -989,6 +989,10 @@ export function scheduleGatewaySigusr1Restart(opts?: {
   };
 }
 
+export function isGatewayRestartPending(): boolean {
+  return pendingRestartTimer !== null || pendingRestartPreparing || hasUnconsumedRestartSignal();
+}
+
 export const testing = {
   resetSigusr1State() {
     sigusr1AuthorizedCount = 0;

@@ -5,6 +5,7 @@ import {
   gatewayStartupUnavailableDetails,
   GATEWAY_STARTUP_RETRY_AFTER_MS,
 } from "../../packages/gateway-protocol/src/startup-unavailable.js";
+import { isGatewayRestartPending } from "../infra/restart.js";
 import { getPluginRegistryState } from "../plugins/runtime-state.js";
 import { withPluginRuntimeGatewayRequestScope } from "../plugins/runtime/gateway-request-scope.js";
 import { formatControlPlaneActor, resolveControlPlaneActor } from "./control-plane-audit.js";
@@ -663,6 +664,24 @@ export async function handleGatewayRequest(
         retryAfterMs: GATEWAY_STARTUP_RETRY_AFTER_MS,
         details: { ...gatewayStartupUnavailableDetails(), method: req.method },
       }),
+    );
+    return;
+  }
+  if (
+    isGatewayRestartPending() &&
+    ["agent", "chat.send", "sessions.send", "workboard.cards.dispatch"].includes(req.method)
+  ) {
+    respond(
+      false,
+      undefined,
+      errorShape(
+        ErrorCodes.UNAVAILABLE,
+        `Gateway is reloading configuration/restarting. Please try again later.`,
+        {
+          retryable: true,
+          retryAfterMs: GATEWAY_STARTUP_RETRY_AFTER_MS,
+        },
+      ),
     );
     return;
   }

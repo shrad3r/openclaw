@@ -35,6 +35,7 @@ import {
   type SourceDeliveryPlan,
   type SourceDeliveryVisibleDelivery,
 } from "../../infra/outbound/source-delivery-plan.js";
+import { isGatewayRestartPending } from "../../infra/restart.js";
 import { createDiagnosticMessageLifecycle } from "../../logging/message-lifecycle.js";
 import { isCommandLaneTaskTimeoutError } from "../../process/command-queue.js";
 import { CommandLane } from "../../process/lanes.js";
@@ -1394,6 +1395,14 @@ export async function runCronIsolatedAgentTurn(params: {
   const prepared = await prepareCronRunContext({ input: params, isFastTestEnv });
   if (!prepared.ok) {
     return prepared.result;
+  }
+  if (isGatewayRestartPending()) {
+    const error = "Gateway is reloading configuration/restarting. Deferred cron execution skipped.";
+    return prepared.context.withRunSession({
+      status: "error",
+      error,
+      diagnostics: createCronRunDiagnosticsFromError("cron-setup", new Error(error)),
+    });
   }
   // Capture the stable run id before execution can rotate its persisted session.
   const initialSessionId = prepared.context.cronSession.sessionEntry.sessionId;

@@ -309,3 +309,13 @@ Skills own workflows; root owns hard policy and routing.
 - Local-only `.agents` ignores: `.git/info/exclude`, not repo `.gitignore`.
 - Provider tool schemas: prefer flat string enum helpers over `Type.Union([Type.Literal(...)])`; some providers reject `anyOf`.
 - External messaging: no token-delta channel messages. Follow `docs/concepts/streaming.md`.
+
+## Cursor Cloud specific instructions
+
+- Node: bare `node` on a fresh (non-login) shell is system `v22.14`, below the repo's `>=22.19` engine. Use nvm `v22.22.2` (the nvm default) before any `pnpm`/`pnpm openclaw` command: `. "$HOME/.nvm/nvm.sh"; nvm use 22.22.2` (a login shell, e.g. `bash -l`, already does this). The startup update script pins this automatically.
+- Standard commands are unchanged; see README "From source (development)". Dev loop: `pnpm openclaw setup` (first run only), then `pnpm gateway:dev` (loopback, `OPENCLAW_SKIP_CHANNELS=1`, no tmux) or `pnpm gateway:watch` (tmux). Rerun `pnpm ui:build` after `ui/` changes.
+- No LLM provider API keys are present in this environment, so the live agent loop cannot reach a real model. For offline end-to-end proof use the bundled mock lanes instead of real providers:
+  - One-shot agent reply: `pnpm openclaw qa manual --provider-mode mock-openai --message "..."` (spins up a child gateway + mock OpenAI server, prints the reply + a `watchUrl`).
+  - Standalone mock server: `pnpm openclaw qa mock-openai --port <p>` exposes an OpenAI-Responses API; point a gateway provider at `http://127.0.0.1:<p>/v1` (`api: "openai-responses"`, `apiKey: "test"`, `request.allowPrivateNetwork: true`) and set the agent model to that provider's `gpt-5.5`.
+- Control UI: the dev gateway serves it at the gateway port (dev default `19001`). It requires the gateway auth token; for loopback http token login set `gateway.auth.{mode:"token",token:...}` and `gateway.controlUi.allowInsecureAuth: true`. The dev config lives at `~/.openclaw-dev/openclaw.json` and is only generated when missing, so manual edits persist across `pnpm gateway:dev` restarts (use `--reset` to regenerate).
+- Local lint and tests share a single on-disk "heavy-check lock" and auto-serialize; do not expect them to run concurrently. Scoped runs are cheap: `pnpm test <path>` and `node scripts/run-oxlint.mjs <path>`.

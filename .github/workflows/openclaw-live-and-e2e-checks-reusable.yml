@@ -599,6 +599,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-32vcpu-ubuntu-2404' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
+      max-parallel: 2
       fail-fast: false
       matrix:
         include:
@@ -746,6 +747,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-32vcpu-ubuntu-2404' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
+      max-parallel: 2
       fail-fast: false
       matrix: ${{ fromJson(needs.plan_release_workflow_matrices.outputs.docker_e2e_matrix) }}
     env:
@@ -1009,6 +1011,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-32vcpu-ubuntu-2404' }}
     timeout-minutes: 60
     strategy:
+      max-parallel: 2
       fail-fast: false
       matrix:
         group: ${{ fromJson(needs.plan_docker_lane_groups.outputs.groups_json) }}
@@ -1721,6 +1724,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-32vcpu-ubuntu-2404' }}
     timeout-minutes: 45
     strategy:
+      max-parallel: 2
       fail-fast: false
       matrix: ${{ fromJson(needs.plan_release_workflow_matrices.outputs.live_models_matrix) }}
     env:
@@ -2022,6 +2026,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-8vcpu-ubuntu-2404' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
+      max-parallel: 6
       fail-fast: false
       matrix:
         include:
@@ -2354,6 +2359,7 @@ jobs:
     runs-on: ${{ inputs.use_github_hosted_runners && 'ubuntu-24.04' || 'blacksmith-32vcpu-ubuntu-2404' }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
+      max-parallel: 4
       fail-fast: false
       matrix:
         include:
@@ -2582,6 +2588,7 @@ jobs:
         password: ${{ github.token }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
+      max-parallel: 4
       fail-fast: false
       matrix:
         include:

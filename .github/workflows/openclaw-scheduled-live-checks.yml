@@ -29,9 +29,12 @@ jobs:
     with:
       ref: ${{ github.sha }}
       include_repo_e2e: true
-      include_release_path_suites: true
-      include_openwebui: true
-      include_live_suites: true
+      # Live/release-path/openwebui suites need provider secrets this repo does
+      # not have configured; re-enable once secrets exist (run them ad hoc via
+      # workflow_dispatch on the reusable workflow in the meantime).
+      include_release_path_suites: false
+      include_openwebui: false
+      include_live_suites: false
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}

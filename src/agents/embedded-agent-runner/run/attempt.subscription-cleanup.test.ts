@@ -25,7 +25,10 @@ describe("cleanupEmbeddedAttemptResources", () => {
 
   it("waits for aborted prompt settlement before flushing and releasing the lock", async () => {
     // After an abort, pending prompt work gets a short chance to settle before
-    // session flush/release/dispose run.
+    // session flush/release/dispose run. The tool-result context guard stays
+    // installed until after the flush so tool results that land during the
+    // settle window are still routed (see "Fix tool execution race conditions
+    // during session teardown").
     const order: string[] = [];
     const settle = createDeferred<void>();
 
@@ -56,12 +59,12 @@ describe("cleanupEmbeddedAttemptResources", () => {
 
     await Promise.resolve();
 
-    expect(order).toEqual(["guard"]);
+    expect(order).toEqual([]);
 
     settle.resolve();
     await cleanupPromise;
 
-    expect(order).toEqual(["guard", "flush", "release", "dispose"]);
+    expect(order).toEqual(["flush", "guard", "release", "dispose"]);
   });
 
   it("releases the lock after the aborted settle timeout", async () => {

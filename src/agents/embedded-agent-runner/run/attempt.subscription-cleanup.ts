@@ -65,10 +65,11 @@ export function buildEmbeddedSubscriptionParams(
 }
 
 /**
- * Tears down per-attempt resources in lock-safe order: remove guards, settle
- * aborted prompts, flush tool results, release the session lock, then dispose
- * runtimes. Lock release errors are reported after best-effort disposal so a
- * failed lock does not leak spawned runtimes.
+ * Tears down per-attempt resources in lock-safe order: settle aborted prompts,
+ * flush tool results, remove guards, release the session lock, then dispose
+ * runtimes. Guard removal happens after the flush so tool results that settle
+ * during the abort window are still routed. Lock release errors are reported
+ * after best-effort disposal so a failed lock does not leak spawned runtimes.
  */
 export async function cleanupEmbeddedAttemptResources(params: {
   removeToolResultContextGuard?: () => void;

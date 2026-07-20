@@ -20,8 +20,8 @@ permissions:
 jobs:
   android:
     name: Critical Security (android)
-    runs-on: blacksmith-8vcpu-ubuntu-2404
-    timeout-minutes: 45
+    runs-on: ${{ github.repository == 'openclaw/openclaw' && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-24.04' }}
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
